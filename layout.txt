@@ -1,0 +1,31 @@
+# This file contains the layout file. Any objects should be passed into the dashutils.get_layout method as a dictionary.
+# For example, country_dropdown below is defined in main.py and it is passed in like so:
+#   app.layout = dashutils.get_layout({'country_dropdown': country_dropdown})
+# The libraries html and dcc from Dash are passed in, as well as datetime
+
+html.Div([
+    html.Div(
+        [
+            html.Div([
+                html.Div(country_dropdown, className='col'),
+                html.Div(dcc.DatePickerRange(
+                    id='date-picker',
+                    min_date_allowed=datetime.date(2020, 1, 22),
+                    max_date_allowed=datetime.date.today(),
+                    end_date=datetime.date.today(),
+                    display_format='D/M/YYYY'
+                ), className='col'),
+                html.Div(dcc.Checklist(
+                    id='by-week',
+                    options=[
+                        {'label': 'Week', 'value': 'true'}
+                    ]
+                ), className='col')
+            ], className='row form-group mt-5'),
+            html.Div([
+                html.Div(id='covid-cases'),
+                html.Div(id='covid-deaths')
+            ])
+        ], className='row align-items-center'
+    )
+], className='container')
