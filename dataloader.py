@@ -1,8 +1,6 @@
 """
-This module retrieves the COVID-19 data from the github repository, and persists it in data.csv. By default,
-it loads new data if available on every subsequent call to load_data().
-
-It records the last date that was stored by saving it in a file called last-date.txt
+This module retrieves the COVID-19 data from the github repository (already pulled to a specified local repo),
+and persists it in data.csv. It is intended to be ran as a main script to be used separately to main.py
 """
 import csv
 
@@ -14,14 +12,9 @@ from sys import argv
 import pandasutils as pu
 from fields import *
 
-__all__ = ['load_data', 'current_data_exists']
-
-# The base url for the COVID-19 data on github
-GITHUB_DATA_URL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/' \
-                  'csse_covid_19_daily_reports/'
-
 # The filename for storing the retrieved data
 DATA_FILE = 'data.csv'
+VACCINATIONS_FILE = 'country_vaccinations.csv'
 # The filename storing the last date retrieved
 LAST_DATE = 'last-date.txt'
 # The first data of COVID-19 data stored
@@ -44,17 +37,6 @@ def _date_to_string(date):
     return date.strftime(DATE_FORMAT)
 
 
-def _create_url(url_base, date, file_extension='csv'):
-    """
-    Creates the url of the data file to download for the provided date
-    :param url_base: the base to append the url onto
-    :param date: the date to read the url for
-    :param file_extension: the file extension without .
-    :return: the created url
-    """
-    return f'{url_base}{_date_to_string(date)}.{file_extension}'
-
-
 class DataRetriever:
     """
     This class retrieves data from some source for a particular date
@@ -66,40 +48,6 @@ class DataRetriever:
         :return: the daily dataframe
         """
         raise NotImplementedError
-
-    def load_new_data(self):
-        """
-        Determine if new data should be loaded
-        :return:
-        """
-
-
-class GithubDataRetriever(DataRetriever):
-    """
-    This class retrieves the data from GitHub
-    """
-
-    def __init__(self, github_base_url: str = GITHUB_DATA_URL):
-        """
-        Creates a GithubDataRetriever with the base url to the repository data
-        :param github_base_url: the github url
-        """
-        self._base = github_base_url
-
-    def retrieve(self, date):
-        """
-        Retrieve the data frame for this particular day
-        :param date: the date to retrieve the dataframe for
-        :return: the daily dataframe
-        """
-        try:
-            url = _create_url(self._base, date)
-            df = pu.from_csv(url)
-        except Exception as e:
-            print(e)
-            df = None
-
-        return df
 
 
 class LocalDataRetriever(DataRetriever):
@@ -142,6 +90,13 @@ class LocalDataRetriever(DataRetriever):
 
 
 def _get_data_retriever() -> DataRetriever:
+    """
+    Set up the DataRetriever for use to read in the csse covid 19 data.
+    If this script has been run with the argument -local with the path to the repository storing the CSSE data
+    on your local machine, the specified path will be used, else default is just covid19data (i.e. checkout the repo
+    as covid19data in the working directory)
+    :return: the data retriever to retrieve the data
+    """
     args = argv[1:]
     args_len = len(args)
 
@@ -157,46 +112,17 @@ def _get_data_retriever() -> DataRetriever:
     if '-local' in args:
         temp = _parse_next_arg('-local')
         local = temp if temp is not None else local
-    elif '-github' in args:
-        return GithubDataRetriever()
 
     return LocalDataRetriever(local)
 
 
-def _get_last_retrieved_date():
-    """
-    This method gets the date of the data that has been last retrieved. If no data has been retrieved, it uses the first
-    date of the data in the github repository
-    :return: the date to retrieve data from
-    """
-    date = FIRST_DATE
-
-    if os.path.isfile(LAST_DATE):
-        with open(LAST_DATE, 'r') as file:
-            date = file.readlines()[0].strip()
-
-    return datetime.datetime.strptime(date, DATE_FORMAT).date()
-
-
-def _get_current_df():
-    """
-    This method reads in the saved data if it exists. If not, this returns None
-    :return: the existing data or none if no data exists
-    """
-    if os.path.isfile(DATA_FILE):
-        return pu.from_csv(DATA_FILE, low_memory=False)
-    else:
-        return None
-
-
-def _get_dates(last_retrieved_date):
+def _get_dates():
     """
     This is a generator function that yields dates from last_retrieved_date (inclusive) adding one day to the date until
     it reaches the current date
-    :param last_retrieved_date: the last date of data retrieved
     :return: None, but it yields dates from last retrieved date to current date, incremented by 1 day
     """
-    start_date = last_retrieved_date
+    start_date = datetime.datetime.strptime(FIRST_DATE, DATE_FORMAT).date()
     end_date = datetime.datetime.now().date()
 
     current_date = start_date
@@ -204,16 +130,6 @@ def _get_dates(last_retrieved_date):
     while current_date <= end_date:
         yield current_date
         current_date = current_date + datetime.timedelta(days=1)
-
-
-def _write_latest_date(date):
-    """
-    This writes the date to the last date file
-    :param date: the date to write
-    :return: None
-    """
-    with open(LAST_DATE, 'w+') as file:
-        file.write(date)
 
 
 def _preprocess_df(df: pu.DataFrame, date):
@@ -248,7 +164,21 @@ def _preprocess_whole_df(df: pu.DataFrame):
     :return: the preprocessed data frame
     """
     def handle_country_daily_cases(df, country):
+        """
+        Calculates the daily numbers from the given totals for the specified country
+        :param df: the dataframe to perform the calculations on
+        :param country: the country to filter the dataframe with
+        :return: the processed dataframe
+        """
         def subtract(df, field, new_field=None):
+            """
+            With the given dataframe and field, this method takes value at field row i and subtracts value at field
+            row i - 1 from it, assigning the value to either the same field or a field with the name new_field
+            :param df: the dataframe to process
+            :param field: the field to work on
+            :param new_field: the name of the new field if any
+            :return: the processed dataframe
+            """
             if new_field is None:
                 new_field = field
             df[new_field] = df[field] - df[field].shift(1)
@@ -262,11 +192,16 @@ def _preprocess_whole_df(df: pu.DataFrame):
         df = subtract(df, CONFIRMED, NEW_CASES)
         #df = subtract(df, DEATHS, 'DeathsTemp')
         #df[DEATHS] = df['DeathsTemp']
-        #df = df.drop('DeathsTemp', axis=1)
+        #df = df.drop('DeathsTemp', axis=1) todo decide what you're doing with this
 
         return df
 
     def daily_cases_preprocessor(df):
+        """
+        Processes the dataframe to convert the total confirmed cases to daily new cases
+        :param df: the dataframe to work on
+        :return: the processed dataframe
+        """
         df[NEW_CASES] = 0
 
         for country in df[COUNTRY_REGION].unique():
@@ -281,47 +216,67 @@ def _preprocess_whole_df(df: pu.DataFrame):
     return df
 
 
-def _load_daily_data(load_new_data: bool):
+def _load_daily_data():
     """
     Load the daily data into one dataframe
     :param load_new_data: true to load in new data if it exists, or false to only read in the current data. If no
     current data exists and load_new_data is false, None will be returned
-    :return: a concatenated dataframe of all the daily data
     """
+    print('Loading and processing daily COVID-19 cases data...')
     data_retriever = _get_data_retriever()
     daily_data = []
-    current_df = _get_current_df()
 
-    if load_new_data:
-        last_date = _get_last_retrieved_date()
-        new_data_found = False
+    new_data_found = False
 
-        for date in _get_dates(last_date):
-            df = _load_day_data(date, data_retriever)
+    for date in _get_dates():
+        df = _load_day_data(date, data_retriever)
 
-            if df is not None:
-                new_data_found = True
-                daily_data.append(df)
+        if df is not None:
+            new_data_found = True
+            daily_data.append(df)
 
-        if new_data_found:
-            if current_df is None:
-                current_df = pd.concat(daily_data)
-            else:
-                current_df = current_df.append(pd.concat(daily_data))
+    if new_data_found:
+        final_df = pd.concat(daily_data)
 
-            current_df = _preprocess_whole_df(current_df)
-            current_df.field_convert(DATE_RECORDED, pd.to_datetime)
-            current_df = current_df.sort_values(DATE_RECORDED, ignore_index=True)
+        final_df = _preprocess_whole_df(final_df)
+        final_df.field_convert(DATE_RECORDED, pd.to_datetime)
+        final_df = final_df.sort_values(DATE_RECORDED, ignore_index=True)
 
-            latest_date = max(current_df[DATE_RECORDED])
-            _write_latest_date(_date_to_string(latest_date))
+        vaccine_data = _load_vaccine_data()
+        print('Merging daily cases data and vaccinations data...')
+        merged = pd.merge(final_df, vaccine_data, on=[COUNTRY_REGION, DATE_RECORDED], how='outer')
+        merged = merged[merged[COUNTRY_REGION].isin(final_df[COUNTRY_REGION])]
 
-            current_df.to_csv(path_or_buf=DATA_FILE, index=False, quoting=csv.QUOTE_NONNUMERIC)
+        # TODO decide if you should fill in NAs or just leave them
+        """for field in VACCINE_FIELDS[2:]:
+            merged[field] = merged[field].fillna(0)"""
+
+        final_df = merged
+        final_df = _processing_funcs(final_df)
+        print(f'Writing data to {DATA_FILE}...')
+        final_df.to_csv(path_or_buf=DATA_FILE, index=False, quoting=csv.QUOTE_NONNUMERIC)
+
+        print(f'Data written to {DATA_FILE}...')
+
+        return final_df
     else:
-        if current_df is not None:
-            current_df.field_convert(DATE_RECORDED, pd.to_datetime)
+        print('No data to write')
+        return None
 
-    return current_df
+
+def _load_vaccine_data():
+    """
+    Loads the vaccinations data
+    :return: vaccinations data
+    """
+    print(f'Loading vaccinations data from {VACCINATIONS_FILE}, courtesy of '
+          'https://www.kaggle.com/gpreda/covid-world-vaccination-progress...')
+    df = pu.from_csv(VACCINATIONS_FILE)
+    df.rename({'country': COUNTRY_REGION, 'date': DATE_RECORDED}, inplace=True, axis=1)
+    df.field_convert(DATE_RECORDED, pd.to_datetime)
+    df = df[VACCINE_FIELDS]
+
+    return df
 
 
 def _processing_funcs(df):
@@ -344,16 +299,11 @@ def current_data_exists():
     return os.path.isfile(DATA_FILE) and os.path.isfile(LAST_DATE)
 
 
-def load_data(load_new_data: bool = True) -> pu.DataFrame:
+def load_data():
     """
     Loads the data into a single data frame
-    :param load_new_data: true to load in new data if it exists, or false to only read in the current data. If no
-    current data exists and load_new_data is false, None will be returned
-    :return: the dataframe of data if data exists. If load_new_data is false and no data exists, None will be returned
     """
-    daily_data = _load_daily_data(load_new_data)
-    daily_data = _processing_funcs(daily_data)
-    return daily_data
+    return _load_daily_data()
 
 
 def add_processing_function(func):
@@ -366,3 +316,34 @@ def add_processing_function(func):
     :return: None
     """
     ADDITIONAL_PROCESSORS.append(func)
+
+
+def load():
+    """
+    Load, save and return the processed dataframe
+    :return: processed data frame
+    """
+    def drop_rep_ireland(df):
+        df = df[df[COUNTRY_REGION] != 'Republic of Ireland']
+        return df
+
+    if os.path.isfile(f'{DATA_FILE}'):
+        os.remove(DATA_FILE)
+
+    add_processing_function(drop_rep_ireland)
+    df = load_data()
+    print('Finished')
+
+    return df
+
+
+def main():
+    """
+    The main entrypoint into this script
+    :return: the loaded dataframe
+    """
+    return load()
+
+
+if __name__ == '__main__':
+    main()

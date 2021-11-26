@@ -1,12 +1,12 @@
 import datetime
-import sys
+import os
 
 import dash
+import pandas as pd
 from dash import html
 from dash import dcc
 from dash.dependencies import Input, Output
 
-import dataloader
 import dashutils as du
 import pandasutils as pu
 
@@ -16,16 +16,39 @@ from fields import *
 app = dash.Dash(__name__,
                 external_stylesheets=['https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css'])
 
+DATA_FILE = 'data.csv'
+
+
+def _bootstrap():
+    """
+    Attempts to bootstrap the server by loading the data it requires if it hasn't been done already
+    :return: the dataframe that has been bootstrapped
+    """
+    print(f'{DATA_FILE} does not exist, attempting to bootstrap it...')
+    import dataloader
+    bootstrapped = dataloader.load()
+
+    if bootstrapped is None or not os.path.isfile(DATA_FILE):
+        print(f'Failed to bootstrap the data file. Try calling dataloader.py as a separate script')
+        exit(1)
+
+    return bootstrapped
+
 
 def get_data():
-    def drop_rep_ireland(df):
-        df = df[df[COUNTRY_REGION] != 'Republic of Ireland']
-        return df
+    """
+    Loads the data in from data.csv. If it doesn't exist, it will attempt to bootstrap by executing the dataloader.py
+    script (therefore, any command line arguments that script requires needs to be passed to this script). Otherwise,
+    run the script separately before starting the server
+    :return: the loaded DataFrame
+    """
+    if not os.path.isfile(DATA_FILE):
+        return _bootstrap()
+    else:
+        df = pu.from_csv(DATA_FILE)
+        df.field_convert(DATE_RECORDED, pd.to_datetime)
 
-    dataloader.add_processing_function(drop_rep_ireland)
-
-    load_new_data = not dataloader.current_data_exists() or '-l' in sys.argv
-    return dataloader.load_data(load_new_data)
+    return df
 
 
 df = get_data()
@@ -41,6 +64,12 @@ DEFAULT_INPUTS = [COUNTRY_SINGLE_INPUT, START_DATE_INPUT, END_DATE_INPUT, WEEK_I
 
 
 def date_value_callback(outputs, inputs=None):
+    """
+    This method creates a callback that is a form of default for graphs that take the default inputs defined above.
+    :param outputs: the outputs the callback returns
+    :param inputs: the inputs if you wish to override the default ones
+    :return: the callback
+    """
     if inputs is None:
         inputs = DEFAULT_INPUTS
 
@@ -48,6 +77,12 @@ def date_value_callback(outputs, inputs=None):
 
 
 def convert_date_range(start_date, end_date):
+    """
+    Convert the string dates to datetime objects
+    :param start_date: the start date
+    :param end_date: the end date
+    :return: the parsed datetime obejcts start and end
+    """
     start_date_obj = datetime.datetime(year=2021, month=1, day=1, hour=0, minute=0, second=0)
     end_date_obj = datetime.datetime.today()
     end_date_obj = datetime.datetime.combine(end_date_obj, datetime.datetime.min.time())
@@ -86,6 +121,14 @@ def filter_by_value_and_date(df, value_field, date_field, value, start_date, end
 
 @date_value_callback([Output('covid-cases', 'children'), Output('covid-deaths', 'children')])
 def covid_cases_deaths(value, start_date, end_date, by_week):
+    """
+    Compares the cases and deaths of COVID-19
+    :param value: the country value from the dropdown
+    :param start_date: the start date for the data
+    :param end_date: the end date for the data
+    :param by_week: true to aggregate data by week or false by day
+    :return: the output graph
+    """
     date_field = WEEK if by_week else DATE_RECORDED
     date_title = 'Week' if by_week else 'Day'
 
@@ -133,6 +176,14 @@ def covid_cases_deaths(value, start_date, end_date, by_week):
 @date_value_callback([Output('compare-covid', 'children')], [Input(country_dropdown_multiple.id, 'value'),
                                                              *DEFAULT_INPUTS[1:]])
 def compare_country_cases(values, start_date, end_date, by_week):
+    """
+    Compares the cases of COVID-19 between multiple countries specified in the values list
+    :param values: the country value from the dropdown
+    :param start_date: the start date for the data
+    :param end_date: the end date for the data
+    :param by_week: true to aggregate data by week or false by day
+    :return: the output graph
+    """
     date_field = WEEK if by_week else DATE_RECORDED
     date_title = 'Week' if by_week else 'Day'
 
@@ -148,8 +199,8 @@ def compare_country_cases(values, start_date, end_date, by_week):
 
         graph = du.create_plotly_figure(data, 'line', x=date_field, y=NEW_CASES, color=COUNTRY_REGION,
                                         title=f'New Covid-19 Cases By {date_title}',
-                                        xaxis={'text': date_title},
-                                        yaxis={'text': 'New Cases'})
+                                        xaxis=date_title,
+                                        yaxis='New Cases')
 
         return [html.Div(dcc.Graph(id='line-chart-compare', figure=graph))]
     else:
@@ -197,6 +248,10 @@ app.layout = du.get_layout({
 
 
 def main():
+    """
+    The main entrypoint into the program
+    :return: None
+    """
     import sys
 
     debug = '-d' in sys.argv

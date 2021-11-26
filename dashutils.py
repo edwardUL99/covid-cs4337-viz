@@ -304,10 +304,27 @@ def create_graph(gc: GraphConfig):
     return gc.build()
 
 
+def _clean_variables(variables: dict):
+    """
+    Clean potentially dangerous variables from the variables dictionary
+    :param variables: the dictionary of variables
+    :return: the cleaned variables dictionary
+    """
+    dangerous_variables = ['os', 'shutil', 'pathlib']
+    import os, shutil, pathlib
+    dangerous_modules = [os, shutil, pathlib]
+    # if any value is a string, don't evaluate it and also don't allow callable values
+    variables = {k: v for k, v in variables.items() if k not in dangerous_variables and not isinstance(v, str)
+                 and not callable(v) and v not in dangerous_modules}
+
+    return variables
+
+
 def get_layout(variables: dict = None):
     """
     Creates and returns the layout for the app
-    :param variables: variables in the layout file that are required
+    :param variables: variables in the layout file that are required.
+    If the variables contains os, shutil, pathlib or any callable objects, they will be discarded
     :return: the app's layout
     """
     import datetime
@@ -320,6 +337,8 @@ def get_layout(variables: dict = None):
 
     if variables is not None:
         parameters = {**parameters, **variables}
+
+    parameters = _clean_variables(parameters)
 
     with open('layout.txt', 'r') as f:
         layout = f.read()
