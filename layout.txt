@@ -27,5 +27,19 @@ html.Div([
                 html.Div(id='covid-deaths')
             ])
         ], className='row align-items-center'
+    ),
+    html.Div(
+        [
+            html.Div(
+                [
+                    country_dropdown_multiple
+                ], className='col'
+            )
+        ], className='row align-items-center'
+    ),
+    html.Div(
+        [
+            html.Div(id='compare-covid')
+        ], className='row align-items-center'
     )
 ], className='container')

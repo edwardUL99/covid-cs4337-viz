@@ -2,6 +2,7 @@
 This class provides utility functions and classes for this project
 """
 from dash import dcc, html
+import plotly.express as px
 
 
 class ColumnDropdown(dcc.Dropdown):
@@ -16,8 +17,9 @@ class ColumnDropdown(dcc.Dropdown):
         :param column: the name of the column. It is expected to be in the dataframe
         :param kwargs: any arguments to pass up the hierarchy chain
         """
-        if 'id' in kwargs:
-            kwargs.pop('id')
+        if 'id' not in kwargs:
+            self.id = f'{column}-dropdown'
+            kwargs['id'] = self.id
 
         if 'options' in kwargs:
             kwargs.pop('options')
@@ -25,7 +27,6 @@ class ColumnDropdown(dcc.Dropdown):
         self.id = f'{column}-dropdown'
 
         kwargs['options'] = ColumnDropdown._create_options(df, column)
-        kwargs['id'] = self.id
 
         self.df = df
         self.column = column
@@ -55,52 +56,109 @@ class ColumnDropdown(dcc.Dropdown):
 
 
 class GraphConfig:
+    """
+    This class provides configuration functionality to pass into create_graph. It is used for creating dash dict
+    graph objects.
+
+    For plotly objects, see the create_plotly_figure function
+    """
     class MarkerConfig:
+        """
+        This is config used by GraphConfig to configure the marker of the graph
+        """
         def __init__(self, gc):
+            """
+            Initialise the MarkerConfig object
+            :param gc: the GraphConfig it belongs to
+            """
             self._gc = gc
             self._color = '#0074D9'
 
         def color(self, color):
+            """
+            Set the color of the marker
+            :param color: the new marker color
+            :return: an instance of self
+            """
             self._color = color
 
             return self
 
         def proceed(self):
+            """
+            Set the GraphConfig marker object and return the GraphConfig object to proceed with graph configuration
+            :return: the instance of the graph config that owns this object
+            """
             self._gc._marker = self.build()
             return self._gc
 
         def build(self):
+            """
+            Build the marker dictionary
+            :return: marker dictionary
+            """
             marker = {'color': self._color}
 
             return marker
 
     class LayoutConfig:
+        """
+        This class provides functionality for configuring the layout of the graph being created by GraphConfig
+        """
         def __init__(self, gc):
+            """
+            Initialise the LayoutConfig
+            :param gc: the graph config that owns this LayoutConfig
+            """
             self._gc = gc
             self._title = 'Dash Plot',
             self._xaxis = ''
             self._yaxis = ''
 
         def title(self, title):
+            """
+            Set the title of the graph
+            :param title: the graph title
+            :return: an instance of self
+            """
             self._title = title
 
             return self
 
         def xaxis(self, xaxis):
+            """
+            Set the name of the graph's xaxis
+            :param xaxis: the name of the xaxis
+            :return: an instance of self
+            """
             self._xaxis = xaxis
 
             return self
 
         def yaxis(self, yaxis):
+            """
+            Set the name of the graph's yaxis
+            :param yaxis: the name of the yaxis
+            :return: an instance of self
+            """
             self._yaxis = yaxis
 
             return self
 
         def proceed(self):
+            """
+            Set the graph config's layout object and return the graph config instance to proceed with graph
+            configuration
+            :return: the graph config instance that owns this object
+            """
             self._gc.layout = self.build()
             return self._gc
 
         def build(self):
+            """
+            Build the layout dictionary
+            :return: the layout dictionary
+            """
             layout = {
                 'title': self._title,
                 'xaxis': {'title': self._xaxis},
@@ -108,10 +166,11 @@ class GraphConfig:
             }
 
             return layout
-    """
-    This class provides configuration functionality to pass into create_graph
-    """
+
     def __init__(self):
+        """
+        Initialise the graph config object
+        """
         self._x = ''
         self._y = ''
         self._type = ''
@@ -121,27 +180,54 @@ class GraphConfig:
         self._layout = None
 
     def x(self, x):
+        """
+        Set the data that is used on the x axis
+        :param x: the x axis data
+        :return: an instance of self
+        """
         self._x = x
 
         return self
 
     def y(self, y):
+        """
+        Set the data that is used on the y axis
+        :param y: the y axis data
+        :return: an instance of self
+        """
         self._y = y
 
         return self
 
     def type(self, type):
+        """
+        Set the type of the graph
+        :param type: graph type
+        :return: an instance of self
+        """
         self._type = type
 
         return self
 
     def marker(self):
+        """
+        Configure the graph's marker
+        :return: an instance of this GraphConfig's MarkerConfig. Call proceed() to return to graph config
+        """
         return self._marker_config
 
     def layout(self):
+        """
+        Configure the graph's layout
+        :return: an instance of this GraphConfig's LayoutConfig. Call proceed(0 to return to graph config
+        """
         return self._layout_config
 
     def build(self):
+        """
+        Build the graph dictionary using the configured parameters
+        :return: graph dictionary
+        """
         if self._marker is None:
             self._marker = self._marker_config.build()
 
@@ -160,8 +246,61 @@ class GraphConfig:
             'layout': self._layout
         }
 
+_graph_functions = {
+    'line': px.line,
+    'bar': px.bar,
+    'scatter': px.scatter,
+    'pie': px.pie
+}
+
+
+def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=None, yaxis=None, **kwargs):
+    """
+    Create the plotly figure from the provided arguments
+    :param df: the dataframe to plot
+    :param figure_type: the type of the plotly figure to create
+    :param x: the name of the column to use for the x axis
+    :param y: the name of the column to use for the y axis
+    :param title: the title of the graph
+    :param color: the color to differentiate multiple aspects of the data
+    :param xaxis: the name of the x axis
+    :param yaxis: the name of the y axis
+    :param kwargs: any extra parameters to pass into plotly
+    :return: the created plotly figure
+    """
+    if figure_type not in _graph_functions:
+        raise ValueError(f'Invalid figure_type {figure_type}. {_graph_functions.keys()} supported')
+
+    extra_args = {
+        'x': x,
+        'y': y
+    }
+
+    if color:
+        extra_args['color'] = color
+
+    kwargs = {**extra_args, **kwargs}
+
+    fig = _graph_functions[figure_type](df, **kwargs)
+
+    if title:
+        fig.update_layout(title_text=title)
+
+    if xaxis:
+        fig.update_layout(xaxis={'title': xaxis})
+
+    if yaxis:
+        fig.update_layout(yaxis={'title': yaxis})
+
+    return fig
+
 
 def create_graph(gc: GraphConfig):
+    """
+    Creates the graph using the provided graph config
+    :param gc: the graph config object
+    :return: the graph as a dict
+    """
     return gc.build()
 
 
