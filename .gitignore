@@ -1,3 +1,4 @@
-*.csv
+data/data.csv
 last-date.txt
 __pycache__
+data/covid19data

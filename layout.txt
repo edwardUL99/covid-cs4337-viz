@@ -24,7 +24,8 @@ html.Div([
             ], className='row form-group mt-5'),
             html.Div([
                 html.Div(id='covid-cases'),
-                html.Div(id='covid-deaths')
+                html.Div(id='covid-deaths'),
+                html.Div(id='covid-cases-deaths')
             ])
         ], className='row align-items-center'
     ),

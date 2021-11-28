@@ -3,6 +3,7 @@ This class provides utility functions and classes for this project
 """
 from dash import dcc, html
 import plotly.express as px
+import plotly.graph_objects as go
 
 
 class ColumnDropdown(dcc.Dropdown):
@@ -246,7 +247,8 @@ class GraphConfig:
             'layout': self._layout
         }
 
-_graph_functions = {
+
+_graph_functions_px = {
     'line': px.line,
     'bar': px.bar,
     'scatter': px.scatter,
@@ -254,7 +256,23 @@ _graph_functions = {
 }
 
 
-def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=None, yaxis=None, **kwargs):
+_graph_functions_go = {
+    'line': go.Line,
+    'bar': go.Bar,
+    'scatter': go.Scatter,
+    'pie': go.Pie
+}
+
+
+def _construct_figure(df, figure_func, x, y, graph_object, **kwargs):
+    if graph_object:
+        return figure_func(x=df[x], y=df[y], **kwargs)
+    else:
+        return figure_func(df, x=x, y=y, **kwargs)
+
+
+def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=None, yaxis=None, graph_object=False,
+                         **kwargs):
     """
     Create the plotly figure from the provided arguments
     :param df: the dataframe to plot
@@ -265,11 +283,14 @@ def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=No
     :param color: the color to differentiate multiple aspects of the data
     :param xaxis: the name of the x axis
     :param yaxis: the name of the y axis
+    :param graph_object: true if to use graph_objects instead of plotly.express
     :param kwargs: any extra parameters to pass into plotly
     :return: the created plotly figure
     """
-    if figure_type not in _graph_functions:
-        raise ValueError(f'Invalid figure_type {figure_type}. {_graph_functions.keys()} supported')
+    graph_funcs = _graph_functions_px if not graph_object else _graph_functions_go
+
+    if figure_type not in graph_funcs:
+        raise ValueError(f'Invalid figure_type {figure_type}. {graph_funcs.keys()} supported')
 
     extra_args = {
         'x': x,
@@ -279,18 +300,23 @@ def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=No
     if color:
         extra_args['color'] = color
 
-    kwargs = {**extra_args, **kwargs}
+    new_kwargs = {**extra_args, **kwargs, 'graph_object': graph_object}
 
-    fig = _graph_functions[figure_type](df, **kwargs)
+    fig = _construct_figure(df, graph_funcs[figure_type],  **new_kwargs) # graph_funcs[figure_type](df, **new_kwargs)
 
-    if title:
-        fig.update_layout(title_text=title)
+    if hasattr(fig, 'update_layout'):
+        if title:
+            fig.update_layout(title_text=title)
 
-    if xaxis:
-        fig.update_layout(xaxis={'title': xaxis})
+        if xaxis:
+            fig.update_layout(xaxis={'title': xaxis})
 
-    if yaxis:
-        fig.update_layout(yaxis={'title': yaxis})
+        if yaxis:
+            fig.update_layout(yaxis={'title': yaxis})
+
+        fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
+        fig.update_xaxes(gridcolor='#eee')
+        fig.update_yaxes(gridcolor='#eee')
 
     return fig
 
