@@ -35,6 +35,58 @@ FIELDS_TO_KEEP = ALL_FIELDS
 # Additional preprocessors to add while loading data
 ADDITIONAL_PROCESSORS = []
 
+
+class CustomDataset:
+    """
+    This class represents an additional dataset to merge into the main CSSE dataframe
+    """
+    def __init__(self, path_or_url: str, on, how: str = 'outer', data_processor=None, post_processor=None):
+        """
+        Initialise the custom dataset object
+        :param path_or_url: the path or url to the file to read in
+        :param on: a string or list of column names to merge on
+        :param how: how to perform the merge
+        :param data_processor: an optional processor to operate on the read in data
+        :param post_processor: a processing function to process the merged dataframe after merging
+        """
+        self.path_or_url = path_or_url
+        self.on = on
+        self.how = how
+        self.data_processor = data_processor
+        self.post_processor = post_processor
+        self.df = None
+
+    def read(self):
+        """
+        Reads in the dataframe and does any necessary processing
+        :return: the processed dataframe (also sets self.df
+        """
+        if self.df is None:
+            self.df = pu.from_csv(self.path_or_url)
+
+            if self.data_processor:
+                self.df = self.data_processor(self.df)
+
+        return self.df
+
+    def merge(self, df):
+        """
+        Merges the provided def with the df behind this object. The df provided is used as the left dataframe
+        :param df: the left dataframe to merge
+        :return: the merged dataframe
+        """
+        right_df = self.read()
+        merged = pd.merge(df, right_df, on=self.on, how=self.how)
+
+        if self.post_processor:
+            merged = self.post_processor(merged)
+
+        return merged
+
+
+# additional datasets to merge into the CSSE data
+ADDITIONAL_DATASETS: list[CustomDataset] = []
+
 parser = argparse.ArgumentParser(description='Pulls and cleans CSSE GIS Covid-19 data and vaccination data from'
                                              f' {VACCINATIONS_URL} into a '
                                              'single DataFrame. By default, it pulls data into the local directory '
@@ -113,14 +165,6 @@ def _pull_data(local=None, github=None, output=None):
             _log(f'Using local repository {local}')
     elif github:
         _do_github(github)
-
-    if not os.path.isfile(VACCINATIONS_FILE):
-        print(f'Vaccinations data file {VACCINATIONS_FILE} does not exist.\nUnfortunately, it cannot be automatically '
-              f'downloaded.\nPlease download it from the following url: '
-              f'{VACCINATIONS_URL}.\nSign in > Click Download > Extract the Zip > Copy country_vaccinations.csv '
-              f'to {DATA}')
-
-        exit(1)
 
 
 def _date_to_string(date):
@@ -299,6 +343,19 @@ def _preprocess_whole_df(df: pu.DataFrame):
     return df
 
 
+def _do_merges(df):
+    """
+    Perform the merges on the CSSE data frame
+    :param df: the CSSE data frame
+    :return: the merged data frame
+    """
+    for custom in ADDITIONAL_DATASETS:
+        _log(f'Merging dataset from {custom.path_or_url}...')
+        df = custom.merge(df)
+
+    return df
+
+
 def _load_data(local, github, output):
     """
     Load the daily data into one dataframe
@@ -326,14 +383,11 @@ def _load_data(local, github, output):
         final_df.field_convert(DATE_RECORDED, pd.to_datetime)
         final_df = final_df.sort_values(DATE_RECORDED, ignore_index=True)
 
-        vaccine_data = _load_vaccine_data()
-        _log('Merging daily cases data and vaccinations data...')
-        merged = pd.merge(final_df, vaccine_data, on=[COUNTRY_REGION, DATE_RECORDED], how='outer')
+        # vaccine_data = _load_vaccine_data()
+        _log('Merging daily cases data with custom datasets...')
+        merged = _do_merges(final_df)
         merged = merged[merged[COUNTRY_REGION].isin(final_df[COUNTRY_REGION])]
-
-        # TODO decide if you should fill in NAs or just leave them
-        """for field in VACCINE_FIELDS[2:]:
-            merged[field] = merged[field].fillna(0)"""
+        # merged = pd.merge(final_df, vaccine_data, on=[COUNTRY_REGION, DATE_RECORDED], how='outer')
 
         final_df = merged
         final_df = _processing_funcs(final_df)
@@ -348,21 +402,6 @@ def _load_data(local, github, output):
     else:
         _log('No data to write')
         return None
-
-
-def _load_vaccine_data():
-    """
-    Loads the vaccinations data
-    :return: vaccinations data
-    """
-    _log(f'Loading vaccinations data from {VACCINATIONS_FILE}, courtesy of '
-          'https://www.kaggle.com/gpreda/covid-world-vaccination-progress...')
-    df = pu.from_csv(VACCINATIONS_FILE)
-    df.rename({'country': COUNTRY_REGION, 'date': DATE_RECORDED}, inplace=True, axis=1)
-    df.field_convert(DATE_RECORDED, pd.to_datetime)
-    df = df[VACCINE_FIELDS]
-
-    return df
 
 
 def _processing_funcs(df):
@@ -397,6 +436,51 @@ def add_processing_function(func):
     ADDITIONAL_PROCESSORS.append(func)
 
 
+def add_custom_dataset(custom: CustomDataset):
+    """
+    Adds a custom dataset to merge into the CSSE dataset. Multiple custom datasets are merged as a chain in the order
+    that they are added
+    :param custom: the custom dataset
+    :return: None
+    """
+    ADDITIONAL_DATASETS.append(custom)
+
+
+def _get_vaccinations_dataset():
+    """
+    Define the CustomDataset for vaccinations data and return it
+    :return: CustomDataset for vaccinations data
+    """
+    if not os.path.isfile(VACCINATIONS_FILE):
+        print(f'Vaccinations data file {VACCINATIONS_FILE} does not exist.\nUnfortunately, it cannot be automatically '
+              f'downloaded.\nPlease download it from the following url: '
+              f'{VACCINATIONS_URL}.\nSign in > Click Download > Extract the Zip > Copy country_vaccinations.csv '
+              f'to {DATA}')
+
+        exit(1)
+
+    _log(f'Loading vaccinations data from {VACCINATIONS_FILE}, courtesy of '
+         'https://www.kaggle.com/gpreda/covid-world-vaccination-progress...')
+
+    def processor(df):
+        df.rename({'country': COUNTRY_REGION, 'date': DATE_RECORDED}, inplace=True, axis=1)
+        df.field_convert(DATE_RECORDED, pd.to_datetime)
+        df = df[VACCINE_FIELDS]
+
+        return df
+
+    # TODO decide if you should fill in NAs or just leave them. If fill_nas, pass this in as post_processor:
+    # CustomDataset(path_or_url=VACCINATIONS_FILE, on=[COUNTRY_REGION, DATE_RECORDED], data_processor=processor,
+    #                          post_processor=fill_nas)
+    def fill_nas(df):
+        for field in VACCINE_FIELDS[2:]:
+            df[field] = df[field].fillna(0)
+
+        return df
+
+    return CustomDataset(path_or_url=VACCINATIONS_FILE, on=[COUNTRY_REGION, DATE_RECORDED], data_processor=processor)
+
+
 def load(local=None, github=None, output=DATA_FILE):
     """
     Load, save and return the processed dataframe
@@ -415,6 +499,7 @@ def load(local=None, github=None, output=DATA_FILE):
         os.remove(output)
 
     add_processing_function(drop_rep_ireland)
+    add_custom_dataset(_get_vaccinations_dataset())
     df = _load_data(local, github, output)
     _log('Finished')
 
