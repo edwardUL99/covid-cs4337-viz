@@ -2,6 +2,7 @@
 This class provides utility functions and classes for this project
 """
 from dash import dcc, html
+import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -358,6 +359,7 @@ def get_layout(variables: dict = None):
     parameters = {
         'html': html,
         'dcc': dcc,
+        'dbc': dbc,
         'datetime': datetime
     }
 

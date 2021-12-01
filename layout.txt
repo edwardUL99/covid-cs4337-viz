@@ -3,44 +3,56 @@
 #   app.layout = dashutils.get_layout({'country_dropdown': country_dropdown})
 # The libraries html and dcc from Dash are passed in, as well as datetime
 
-html.Div([
-    html.Div(
+dbc.Container([
+    dbc.Row(
         [
-            html.Div([
-                html.Div(country_dropdown, className='col'),
-                html.Div(dcc.DatePickerRange(
+            dbc.Row([
+                dbc.Col(country_dropdown),
+                dbc.Col(dcc.DatePickerRange(
                     id='date-picker',
                     min_date_allowed=datetime.date(2020, 1, 22),
                     max_date_allowed=datetime.date.today(),
                     end_date=datetime.date.today(),
                     display_format='D/M/YYYY'
-                ), className='col'),
-                html.Div(dcc.Checklist(
+                )),
+                dbc.Col(dbc.Checklist(
                     id='by-week',
                     options=[
                         {'label': 'Week', 'value': 'true'}
                     ]
-                ), className='col')
-            ], className='row form-group mt-5'),
+                ))
+            ], className='form-group mt-5'),
             html.Div([
                 html.Div(id='covid-cases'),
                 html.Div(id='covid-deaths'),
                 html.Div(id='covid-cases-deaths')
             ])
-        ], className='row align-items-center'
+        ], className='align-items-center'
     ),
-    html.Div(
+    dbc.Row(
         [
-            html.Div(
+            dbc.Col(
                 [
                     country_dropdown_multiple
-                ], className='col'
+                ]),
+            dbc.Col(
+                [
+                    dbc.RadioItems(
+                        id='compare-cases-options',
+                        options=[
+                            {'label': 'Compare New Cases', 'value': 1},
+                            {'label': 'Compare Confirmed Cases', 'value': 2},
+                            {'label': 'Compare Deaths', 'value': 3}
+                        ],
+                        value=1
+                    )
+                ]
             )
-        ], className='row align-items-center'
+        ], className='align-items-center'
     ),
-    html.Div(
+    dbc.Row(
         [
             html.Div(id='compare-covid')
-        ], className='row align-items-center'
+        ], className='align-items-center'
     )
-], className='container')
+])

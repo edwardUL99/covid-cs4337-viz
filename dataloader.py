@@ -518,6 +518,15 @@ def main():
     github = args.github
     output = args.output
 
+    if output and os.path.isfile(output):
+        confirm = input(f'{output} already exists. Proceeding will overwrite it. Do you wish to proceed? (Y/n)')
+
+        if confirm.strip().lower() != 'n':
+            print('Proceeding...')
+        else:
+            print('Cancelling...')
+            exit(0)
+
     return load(local, github, output)
 
 

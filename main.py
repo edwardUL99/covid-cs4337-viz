@@ -16,6 +16,8 @@ import pandasutils as pu
 
 from fields import *
 
+from enum import Enum
+
 
 app = dash.Dash(__name__,
                 external_stylesheets=['https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css'])
@@ -164,8 +166,7 @@ def covid_cases_deaths(value, start_date, end_date, by_week):
         )]
     else:
         return html.Div(
-            'Please select a country',
-            className='row mt-5 mb-5 text-center'
+            dcc.Graph()
         ), ''
 
 
@@ -199,12 +200,37 @@ def covid_confirmed_death(value, start_date, end_date, by_week):
         return ['']
 
 
+class _CompareCasesOptions(Enum):
+    NEW_CASES = 1
+    CONFIRMED_CASES = 2
+    DEATHS = 3
+
+
+def _parse_case_options(date_type, cases_options):
+    """
+    Parses the cases options and returns the title, yaxis and column attribute
+    :param date_type: the date type to display in the title
+    :param cases_options: the option value
+    :return: the title, yaxis and column attribute
+    """
+    if cases_options == _CompareCasesOptions.NEW_CASES.value:
+        return f'New Covid-19 Cases By {date_type}', 'New Cases', NEW_CASES
+    elif cases_options == _CompareCasesOptions.CONFIRMED_CASES.value:
+        return f'Confirmed Covid-19 Cases By {date_type}', 'Confirmed Cases', CONFIRMED
+    elif cases_options == _CompareCasesOptions.DEATHS.value:
+        return f'Covid-19 Deaths By {date_type}', 'Deaths', DEATHS
+    else:
+        raise ValueError(f'Unknown option for _CompareCasesOptions enumeration: {cases_options}')
+
+
 @date_value_callback([Output('compare-covid', 'children')], [Input(country_dropdown_multiple.id, 'value'),
+                                                             Input('compare-cases-options', 'value'),
                                                              *DEFAULT_INPUTS[1:]])
-def compare_country_cases(values, start_date, end_date, by_week):
+def compare_country_cases(values, compare_cases_options, start_date, end_date, by_week):
     """
     Compares the cases of COVID-19 between multiple countries specified in the values list
     :param values: the country value from the dropdown
+    :param compare_cases_options: the value for which attribute to compare
     :param start_date: the start date for the data
     :param end_date: the end date for the data
     :param by_week: true to aggregate data by week or false by day
@@ -212,6 +238,7 @@ def compare_country_cases(values, start_date, end_date, by_week):
     """
     date_field = WEEK if by_week else DATE_RECORDED
     date_title = 'Week' if by_week else 'Day'
+    title, yaxis, column = _parse_case_options(date_title, compare_cases_options)
 
     start_date, end_date = convert_date_range(start_date, end_date)
 
@@ -223,14 +250,14 @@ def compare_country_cases(values, start_date, end_date, by_week):
             pu.convert_date_field_to_week(data, DATE_RECORDED, week_number=False)
             data = data.group_aggregate([COUNTRY_REGION, WEEK])
 
-        graph = du.create_plotly_figure(data, 'line', x=date_field, y=NEW_CASES, color=COUNTRY_REGION,
-                                        title=f'New Covid-19 Cases By {date_title}',
+        graph = du.create_plotly_figure(data, 'line', x=date_field, y=column, color=COUNTRY_REGION,
+                                        title=title,
                                         xaxis=date_title,
-                                        yaxis='New Cases')
+                                        yaxis=yaxis)
 
         return [html.Div(dcc.Graph(id='line-chart-compare', figure=graph))]
     else:
-        return ['']
+        return [html.Div(dcc.Graph())]
 
 
 """
