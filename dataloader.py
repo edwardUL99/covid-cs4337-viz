@@ -332,13 +332,14 @@ def _preprocess_whole_df(df: pu.DataFrame):
         df[NEW_CASES] = 0
 
         for country in df[COUNTRY_REGION].unique():
-            country_df = handle_country_daily_cases(df, country)
+            country_df = handle_country_daily_cases(df, country) # TODO for US data, it seems very erratic and differing new cases numbers compared to https://91-divoc.com/pages/covid-visualization/
+            # TODO check out this article: https://towardsdatascience.com/covid-19-data-processing-58aaa3663f6, think about using time series instead
             df.replace_rows(COUNTRY_REGION, country, country_df)
 
         return df
 
-    df = daily_cases_preprocessor(df)
     df = df.group_aggregate([DATE_RECORDED, COUNTRY_REGION])
+    df = daily_cases_preprocessor(df)
 
     return df
 

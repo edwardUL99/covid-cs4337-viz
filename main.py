@@ -32,6 +32,9 @@ args = parser.parse_args()
 DATA_FILE = args.file
 
 
+# TODO look at this website for visualisation ideas: https://ourworldindata.org/coronavirus/country/united-states
+
+
 def get_data():
     """
     Loads the data in from data.csv. If it doesn't exist, it will attempt to bootstrap by executing the dataloader.py
