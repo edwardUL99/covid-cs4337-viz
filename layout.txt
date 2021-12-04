@@ -42,7 +42,8 @@ dbc.Container([
                         options=[
                             {'label': 'Compare New Cases', 'value': 1},
                             {'label': 'Compare Confirmed Cases', 'value': 2},
-                            {'label': 'Compare Deaths', 'value': 3}
+                            {'label': 'Compare New Deaths', 'value': 3},
+                            {'label': 'Compare Deaths', 'value': 4}
                         ],
                         value=1
                     )

@@ -14,21 +14,16 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 import pandasutils as pu
 from fields import *
 
-# TODO maybe check if df already exists and then only append data which has a daterecorded >= the max currently recorded
-
 # The filename for storing the retrieved data
 DATA = os.path.join(basedir, 'data')
 DATA_FILE = os.path.join(DATA, 'data.csv')
-VACCINATIONS_URL = 'https://www.kaggle.com/gpreda/covid-world-vaccination-progress'
+VACCINATIONS_URL = 'https://raw.githubusercontent.com/govex/COVID-19/master/data_tables/vaccine_data/global_data/' \
+                   'time_series_covid19_vaccine_global.csv'
 VACCINATIONS_FILE = os.path.join(DATA, 'country_vaccinations.csv')
-GITHUB_DESTINATION_DEFAULT = os.path.join(DATA, 'covid19data')
-GITHUB_URL = 'git@github.com:CSSEGISandData/COVID-19.git'
-# The filename storing the last date retrieved
-LAST_DATE = 'last-date.txt'
-# The first data of COVID-19 data stored
-FIRST_DATE = '01-22-2020'
+GITHUB_URL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/' \
+             'csse_covid_19_time_series/'
 # The format for parsing dates
-DATE_FORMAT = '%m-%d-%Y'
+DATE_FORMAT = '%m/%d/%y'
 # The fields of the downloaded data we want to keep
 FIELDS_TO_KEEP = ALL_FIELDS
 
@@ -87,21 +82,10 @@ class CustomDataset:
 # additional datasets to merge into the CSSE data
 ADDITIONAL_DATASETS: list[CustomDataset] = []
 
-parser = argparse.ArgumentParser(description='Pulls and cleans CSSE GIS Covid-19 data and vaccination data from'
-                                             f' {VACCINATIONS_URL} into a '
+parser = argparse.ArgumentParser(description='Pulls and cleans CSSE GIS Covid-19 data and vaccination data into a '
                                              'single DataFrame. By default, it pulls data into the local directory '
                                              'under the data directory')
 
-group = parser.add_mutually_exclusive_group()
-group.add_argument('-l', '--local',
-                   help='If the git repository has already been cloned, provide the path here. The data'
-                        ' will be used as is and not pulled to update it',
-                   required=False, default=None)
-group.add_argument('-g', '--github', help='Specifies the destination path for the git repo. If the git repo does not'
-                                          ' exist, it will be cloned. If it does, it will be pulled to update the new'
-                                          ' data. For this to work, you need to have a GitHub ssh key setup. See '
-                                          'https://docs.github.com/en/authentication/connecting-to-github-with-ssh',
-                   required=False, default=GITHUB_DESTINATION_DEFAULT)
 parser.add_argument('-o', '--output', help='The path to the output file', required=False, default=DATA_FILE)
 
 args = parser.parse_args()
@@ -113,39 +97,12 @@ def _log(msg):
         print(msg)
 
 
-def _do_github(github):
+def _prepare_output(output=None):
     """
-    Clone/pull from github
-    :param github: the path to the github destination
-    :return: None
-    """
-    from git import Repo
-
-    if not os.path.isdir(github):
-        _log(f'Cloning GitHub repository to {github}')
-        repo = Repo.clone_from(url=GITHUB_URL, to_path=github)
-        repo.git.checkout('master')
-    else:
-        _log(f'Pulling updates for GitHub repository in {github}')
-        repo = Repo(github)
-        repo.git.checkout('master')
-        repo.remotes.origin.pull()
-
-
-def _pull_data(local=None, github=None, output=None):
-    """
-    Pull the data from the appropriate datasource. If local and it exists, nothing is done. If it doesn't exist, an
-    error is thrown. If github and the repo doesn't exist, it will be cloned. If it does exist, it will be pulled.
-    :param local: the path to the local repo if already cloned
-    :param github: the path to the repo to clone/pull from github
+    Prepares the output directory
     :param output: the output path for the data file
     :return: None
     """
-    if local is None and github is None:
-        raise RuntimeError('You need to specify either a local repository or a destination to clone the GitHub '
-                           'repository')
-    elif local == github:
-        raise RuntimeError('You can only specify one of: local repository or GitHub repository')
 
     if output is None:
         output = DATA
@@ -157,14 +114,6 @@ def _pull_data(local=None, github=None, output=None):
 
     if not os.path.isdir(output):
         os.makedirs(output)
-
-    if local:
-        if not os.path.isdir(local):
-            raise RuntimeError(f'{local} is either not a directory or it does not exist')
-        else:
-            _log(f'Using local repository {local}')
-    elif github:
-        _do_github(github)
 
 
 def _date_to_string(date):
@@ -181,80 +130,80 @@ class DataRetriever:
     This class retrieves data from some source for a particular date
     """
 
-    def retrieve(self, date):
+    def retrieve(self):
         """
         Retrieve the data frame for this particular day
-        :param date: the date to retrieve the dataframe for
         :return: the daily dataframe
         """
         raise NotImplementedError
 
 
-class LocalDataRetriever(DataRetriever):
+class GithubDataRetriever(DataRetriever):
     """
-    This class retrieves data locally if the github repo has been cloned
+    This class retrieves data from github
     """
 
-    def __init__(self, repo_root_path):
+    def __init__(self):
         """
         Create a LocalDataRetriever
-        :param repo_root_path: the path to the root of the locally cloned repo
         """
-        self._root = repo_root_path
+        super().__init__()
 
-        if not os.path.isdir(self._root):
-            raise RuntimeError(f'{self._root} does not exist')
-
-        self._data = os.path.join(self._root, 'csse_covid_19_data', 'csse_covid_19_daily_reports')
-
-    def _create_path(self, date):
-        """
-        Create the path for the given date
-        :param date: the date of the csv file to read
-        :return: the path
-        """
-        return os.path.join(self._data, f'{_date_to_string(date)}.csv')
-
-    def retrieve(self, date):
+    def retrieve(self):
         """
         Retrieve the data frame for this particular day
-        :param date: the date to retrieve the dataframe for
         :return: the daily dataframe
         """
-        path = self._create_path(date)
+        confirmed_url = f'{GITHUB_URL}time_series_covid19_confirmed_global.csv'
+        deaths_url = f'{GITHUB_URL}time_series_covid19_deaths_global.csv'
+        recovered_url = f'{GITHUB_URL}time_series_covid19_recovered_global.csv'
 
-        if not os.path.isfile(path):
-            return None
-        else:
-            return pu.from_csv(path)
+        def _melt(df, value_name):
+            """
+            Melt wide form into long form
+            :param df: the dataframe to melt
+            :param value_name: the name of the value column
+            :return: the melted dataframe
+            """
+            dates = df.columns[4:]
+
+            df_long = df.melt(
+                id_vars=[COUNTRY_REGION],
+                value_vars=dates,
+                var_name=DATE_RECORDED,
+                value_name=value_name
+            )
+
+            return df_long
+
+        df_confirmed = _melt(pu.from_csv(confirmed_url), CONFIRMED)
+        df_deaths = _melt(pu.from_csv(deaths_url), DEATHS)
+        df_recovered = _melt(pu.from_csv(recovered_url), RECOVERED)
+
+        full_df = df_confirmed.merge(
+            right=df_deaths,
+            how='left',
+            on=[COUNTRY_REGION, DATE_RECORDED]
+        )
+
+        full_df = full_df.merge(
+            right=df_recovered,
+            how='left',
+            on=[COUNTRY_REGION, DATE_RECORDED]
+        )
+
+        full_df.field_convert(DATE_RECORDED, pd.to_datetime, format=DATE_FORMAT)
+
+        return full_df
 
 
-def _get_data_retriever(local, github) -> DataRetriever:
+def _get_data_retriever() -> DataRetriever:
     """
-    Set up the DataRetriever for use to read in the csse covid 19 data based on either local repo or github repo
-    :param local: the path to the local repo if already cloned
-    :param github: the path to the repo to clone/pull from github
+    Set up the DataRetriever for use to read in the csse covid 19 data
     :return: the data retriever to retrieve the data
     """
-    path = local if local else github
 
-    return LocalDataRetriever(path)
-
-
-def _get_dates():
-    """
-    This is a generator function that yields dates from last_retrieved_date (inclusive) adding one day to the date until
-    it reaches the current date
-    :return: None, but it yields dates from last retrieved date to current date, incremented by 1 day
-    """
-    start_date = datetime.datetime.strptime(FIRST_DATE, DATE_FORMAT).date()
-    end_date = datetime.datetime.now().date()
-
-    current_date = start_date
-
-    while current_date <= end_date:
-        yield current_date
-        current_date = current_date + datetime.timedelta(days=1)
+    return GithubDataRetriever()
 
 
 def _preprocess_df(df: pu.DataFrame, date):
@@ -271,15 +220,23 @@ def _preprocess_df(df: pu.DataFrame, date):
     return preprocessed_df
 
 
-def _load_day_data(date, data_retriever: DataRetriever):
+def subtract(df, field, new_field=None):
     """
-    Reads the day data for the provided date and returns the dataframe and if no error occurs
-    :param date: the date to read the data for
-    :return: the dataframe or none if an error occurred
+    With the given dataframe and field, this method takes value at field row i and subtracts value at field
+    row i - 1 from it, assigning the value to either the same field or a field with the name new_field
+    :param df: the dataframe to process
+    :param field: the field to work on
+    :param new_field: the name of the new field if any
+    :return: the processed dataframe
     """
-    df = data_retriever.retrieve(date)
+    if new_field is None:
+        new_field = field
+    df[new_field] = df[field] - df[field].shift(1)
+    df[new_field].fillna(df[field], inplace=True)
+    df[new_field].fillna(0, inplace=True)
+    df[new_field] = df[new_field].clip(lower=0)
 
-    return _preprocess_df(df, date) if df is not None else None
+    return df
 
 
 def _preprocess_whole_df(df: pu.DataFrame):
@@ -297,29 +254,9 @@ def _preprocess_whole_df(df: pu.DataFrame):
         :return: the processed dataframe
         """
 
-        def subtract(df, field, new_field=None):
-            """
-            With the given dataframe and field, this method takes value at field row i and subtracts value at field
-            row i - 1 from it, assigning the value to either the same field or a field with the name new_field
-            :param df: the dataframe to process
-            :param field: the field to work on
-            :param new_field: the name of the new field if any
-            :return: the processed dataframe
-            """
-            if new_field is None:
-                new_field = field
-            df[new_field] = df[field] - df[field].shift(1)
-            df[new_field].fillna(df[field], inplace=True)
-            df[new_field].fillna(0, inplace=True)
-            df[new_field] = df[new_field].clip(lower=0)
-
-            return df
-
         df = df[df[COUNTRY_REGION] == country].copy()
         df = subtract(df, CONFIRMED, NEW_CASES)
-        # df = subtract(df, DEATHS, 'DeathsTemp')
-        # df[DEATHS] = df['DeathsTemp']
-        # df = df.drop('DeathsTemp', axis=1) todo decide what you're doing with this
+        df = subtract(df, DEATHS, NEW_DEATHS)
 
         return df
 
@@ -330,6 +267,7 @@ def _preprocess_whole_df(df: pu.DataFrame):
         :return: the processed dataframe
         """
         df[NEW_CASES] = 0
+        df[NEW_DEATHS] = 0
 
         for country in df[COUNTRY_REGION].unique():
             country_df = handle_country_daily_cases(df, country) # TODO for US data, it seems very erratic and differing new cases numbers compared to https://91-divoc.com/pages/covid-visualization/
@@ -357,52 +295,35 @@ def _do_merges(df):
     return df
 
 
-def _load_data(local, github, output):
+def _load_data(output):
     """
     Load the daily data into one dataframe
-    :param local: the path to the local repo if already cloned
-    :param github: the path to the repo to clone/pull from github
     :param output: the output path for the data file
     """
     _log('Loading and processing daily COVID-19 cases data...')
-    data_retriever = _get_data_retriever(local, github)
-    daily_data = []
+    data_retriever = _get_data_retriever()
 
-    new_data_found = False
+    final_df = data_retriever.retrieve()
 
-    for date in _get_dates():
-        df = _load_day_data(date, data_retriever)
+    final_df = _preprocess_whole_df(final_df)
+    final_df.field_convert(DATE_RECORDED, pd.to_datetime)
+    final_df = final_df.sort_values(DATE_RECORDED, ignore_index=True)
 
-        if df is not None:
-            new_data_found = True
-            daily_data.append(df)
+    # vaccine_data = _load_vaccine_data()
+    _log('Merging daily cases data with custom datasets...')
+    merged = _do_merges(final_df)
+    merged = merged[merged[COUNTRY_REGION].isin(final_df[COUNTRY_REGION])]
 
-    if new_data_found:
-        final_df = pd.concat(daily_data)
+    final_df = merged
+    final_df = _processing_funcs(final_df)
 
-        final_df = _preprocess_whole_df(final_df)
-        final_df.field_convert(DATE_RECORDED, pd.to_datetime)
-        final_df = final_df.sort_values(DATE_RECORDED, ignore_index=True)
+    if output:
+        _log(f'Writing data to {output}...')
+        final_df.to_csv(path_or_buf=output, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
-        # vaccine_data = _load_vaccine_data()
-        _log('Merging daily cases data with custom datasets...')
-        merged = _do_merges(final_df)
-        merged = merged[merged[COUNTRY_REGION].isin(final_df[COUNTRY_REGION])]
-        # merged = pd.merge(final_df, vaccine_data, on=[COUNTRY_REGION, DATE_RECORDED], how='outer')
+        _log(f'Data written to {output}...')
 
-        final_df = merged
-        final_df = _processing_funcs(final_df)
-
-        if output:
-            _log(f'Writing data to {output}...')
-            final_df.to_csv(path_or_buf=output, index=False, quoting=csv.QUOTE_NONNUMERIC)
-
-            _log(f'Data written to {output}...')
-
-        return final_df
-    else:
-        _log('No data to write')
-        return None
+    return final_df
 
 
 def _processing_funcs(df):
@@ -415,14 +336,6 @@ def _processing_funcs(df):
         df = func(df)
 
     return df
-
-
-def current_data_exists():
-    """
-    Checks if data currently exists and returns true if so
-    :return: if data doesn't exist or it is not in a proper format, this will return false
-    """
-    return os.path.isfile(DATA_FILE) and os.path.isfile(LAST_DATE)
 
 
 def add_processing_function(func):
@@ -452,20 +365,12 @@ def _get_vaccinations_dataset():
     Define the CustomDataset for vaccinations data and return it
     :return: CustomDataset for vaccinations data
     """
-    if not os.path.isfile(VACCINATIONS_FILE):
-        print(f'Vaccinations data file {VACCINATIONS_FILE} does not exist.\nUnfortunately, it cannot be automatically '
-              f'downloaded.\nPlease download it from the following url: '
-              f'{VACCINATIONS_URL}.\nSign in > Click Download > Extract the Zip > Copy country_vaccinations.csv '
-              f'to {DATA}')
-
-        exit(1)
-
-    _log(f'Loading vaccinations data from {VACCINATIONS_FILE}, courtesy of '
-         'https://www.kaggle.com/gpreda/covid-world-vaccination-progress...')
+    _log(f'Loading vaccinations data from {VACCINATIONS_URL}')
 
     def processor(df):
-        df.rename({'country': COUNTRY_REGION, 'date': DATE_RECORDED}, inplace=True, axis=1)
+        df.rename({'Country_Region': COUNTRY_REGION, 'Date': DATE_RECORDED, 'Doses_admin': TOTAL_VACCINATIONS}, inplace=True, axis=1)
         df.field_convert(DATE_RECORDED, pd.to_datetime)
+        df = df.group_aggregate([DATE_RECORDED, COUNTRY_REGION])
         df = df[VACCINE_FIELDS]
 
         return df
@@ -479,18 +384,29 @@ def _get_vaccinations_dataset():
 
         return df
 
-    return CustomDataset(path_or_url=VACCINATIONS_FILE, on=[COUNTRY_REGION, DATE_RECORDED], data_processor=processor)
+    def compute_daily_vaccines(df):
+        df = fill_nas(df)
+
+        df[DAILY_VACCINATIONS] = 0
+
+        for country in df[COUNTRY_REGION].unique():
+            country_df = df[df[COUNTRY_REGION] == country].copy()
+            country_df = subtract(country_df, TOTAL_VACCINATIONS, DAILY_VACCINATIONS)
+            df.replace_rows(COUNTRY_REGION, country, country_df)
+
+        return df
+
+    return CustomDataset(path_or_url=VACCINATIONS_URL, on=[COUNTRY_REGION, DATE_RECORDED], data_processor=processor,
+                         post_processor=compute_daily_vaccines)
 
 
-def load(local=None, github=None, output=DATA_FILE):
+def load(output=DATA_FILE):
     """
     Load, save and return the processed dataframe
-    :param local: the path to the local repo if already cloned
-    :param github: the path to the repo to clone/pull from github
     :param output: the output path for the data file. Leave as None if you don't want to write to file
     :return: processed data frame
     """
-    _pull_data(local, github, output)
+    _prepare_output(output)
 
     def drop_rep_ireland(df):
         df = df[df[COUNTRY_REGION] != 'Republic of Ireland']
@@ -501,7 +417,7 @@ def load(local=None, github=None, output=DATA_FILE):
 
     add_processing_function(drop_rep_ireland)
     add_custom_dataset(_get_vaccinations_dataset())
-    df = _load_data(local, github, output)
+    df = _load_data(output)
     _log('Finished')
 
     return df
@@ -515,8 +431,6 @@ def main():
     global _output_messages
     _output_messages = True  # if run from main, output messages to stdin
 
-    local = args.local
-    github = args.github
     output = args.output
 
     if output and os.path.isfile(output):
@@ -528,7 +442,7 @@ def main():
             print('Cancelling...')
             exit(0)
 
-    return load(local, github, output)
+    return load(output)
 
 
 if __name__ == '__main__':

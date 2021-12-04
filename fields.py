@@ -8,16 +8,17 @@ DEATHS = 'Deaths'
 RECOVERED = 'Recovered'
 ALL_FIELDS = [COUNTRY_REGION, CONFIRMED, DEATHS, RECOVERED]
 
-# Fields in the vaccinations dataset found at https://www.kaggle.com/gpreda/covid-world-vaccination-progress
-TOTAL_VACCINATIONS = 'total_vaccinations'
-PEOPLE_VACCINATED = 'people_vaccinated'
+# Fields in the vaccinations dataset
+TOTAL_VACCINATIONS = 'Doses'
 DAILY_VACCINATIONS = 'daily_vaccinations'
-FULLY_VACCINATED = 'people_fully_vaccinated'
+FULLY_VACCINATED = 'People_fully_vaccinated'
+PARTIALLY_VACCINATED = 'People_partially_vaccinated'
 
 # The following fields are custom fields added in that are not in the original data
 DATE_RECORDED = 'DateRecorded'
 WEEK = 'Week'
 NEW_CASES = 'NewCases'
+NEW_DEATHS = 'NewDeaths'
 
 VACCINE_FIELDS = [COUNTRY_REGION, DATE_RECORDED, TOTAL_VACCINATIONS,
-                  PEOPLE_VACCINATED, DAILY_VACCINATIONS, FULLY_VACCINATED]
+                  FULLY_VACCINATED, PARTIALLY_VACCINATED]

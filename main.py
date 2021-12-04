@@ -206,7 +206,8 @@ def covid_confirmed_death(value, start_date, end_date, by_week):
 class _CompareCasesOptions(Enum):
     NEW_CASES = 1
     CONFIRMED_CASES = 2
-    DEATHS = 3
+    NEW_DEATHS = 3
+    DEATHS = 4
 
 
 def _parse_case_options(date_type, cases_options):
@@ -220,6 +221,8 @@ def _parse_case_options(date_type, cases_options):
         return f'New Covid-19 Cases By {date_type}', 'New Cases', NEW_CASES
     elif cases_options == _CompareCasesOptions.CONFIRMED_CASES.value:
         return f'Confirmed Covid-19 Cases By {date_type}', 'Confirmed Cases', CONFIRMED
+    elif cases_options == _CompareCasesOptions.NEW_DEATHS.value:
+        return f'New Covid-19 Deaths By {date_type}', 'New Deaths', NEW_DEATHS
     elif cases_options == _CompareCasesOptions.DEATHS.value:
         return f'Covid-19 Deaths By {date_type}', 'Deaths', DEATHS
     else:
