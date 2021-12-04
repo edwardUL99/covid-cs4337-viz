@@ -347,9 +347,10 @@ def _clean_variables(variables: dict):
     return variables
 
 
-def get_layout(variables: dict = None):
+def get_layout(layout_file, variables: dict = None):
     """
     Creates and returns the layout for the app
+    :param layout_file: the path to the layout file
     :param variables: variables in the layout file that are required.
     If the variables contains os, shutil, pathlib or any callable objects, they will be discarded
     :return: the app's layout
@@ -368,7 +369,7 @@ def get_layout(variables: dict = None):
 
     parameters = _clean_variables(parameters)
 
-    with open('layout.txt', 'r') as f:
+    with open(layout_file, 'r') as f:
         layout = f.read()
 
     dash_layout = eval(layout, parameters)

@@ -75,6 +75,31 @@ class DataFrame(pd.DataFrame):
 
         return preprocessed_df
 
+    def subtract_previous(self, field, new_field=None, inplace=True):
+        """
+        With the given field, this method takes value at field row i and subtracts value at field
+        row i - 1 from it, assigning the value to either the same field or a field with the name new_field
+        :param df: the dataframe to process
+        :param field: the field to work on
+        :param new_field: the name of the new field if any
+        :param inplace: true to perform in place, else on a copy
+        :return: the processed dataframe if not in place or none if inplace
+        """
+        if inplace:
+            df = self
+        else:
+            df = self.copy()
+
+        if new_field is None:
+            new_field = field
+
+        df[new_field] = df[field] - df[field].shift(1)
+        df[new_field].fillna(df[field], inplace=True)
+        df[new_field].fillna(0, inplace=True)
+        df[new_field] = df[new_field].clip(lower=0)
+
+        return df if not inplace else None
+
     def field_convert(self, field, converter_func, inplace=True, **kwargs):
         """
         Takes the provided field and passes it through the converter_func.

@@ -6,20 +6,17 @@ import csv
 import argparse
 
 import pandas as pd
-import datetime
 import os
+
+import const
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 import pandasutils as pu
 from fields import *
 
-# The filename for storing the retrieved data
-DATA = os.path.join(basedir, 'data')
-DATA_FILE = os.path.join(DATA, 'data.csv')
 VACCINATIONS_URL = 'https://raw.githubusercontent.com/govex/COVID-19/master/data_tables/vaccine_data/global_data/' \
                    'time_series_covid19_vaccine_global.csv'
-VACCINATIONS_FILE = os.path.join(DATA, 'country_vaccinations.csv')
 GITHUB_URL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/' \
              'csse_covid_19_time_series/'
 # The format for parsing dates
@@ -86,7 +83,7 @@ parser = argparse.ArgumentParser(description='Pulls and cleans CSSE GIS Covid-19
                                              'single DataFrame. By default, it pulls data into the local directory '
                                              'under the data directory')
 
-parser.add_argument('-o', '--output', help='The path to the output file', required=False, default=DATA_FILE)
+parser.add_argument('-o', '--output', help='The path to the output file', required=False, default=const.DATA_FILE)
 
 args = parser.parse_args()
 _output_messages=False
@@ -105,12 +102,9 @@ def _prepare_output(output=None):
     """
 
     if output is None:
-        output = DATA
+        output = const.FILE_DIR
     else:
         output = os.path.dirname(output)
-
-    if not os.path.isdir(DATA):
-        os.makedirs(DATA)
 
     if not os.path.isdir(output):
         os.makedirs(output)
@@ -220,25 +214,6 @@ def _preprocess_df(df: pu.DataFrame, date):
     return preprocessed_df
 
 
-def subtract(df, field, new_field=None):
-    """
-    With the given dataframe and field, this method takes value at field row i and subtracts value at field
-    row i - 1 from it, assigning the value to either the same field or a field with the name new_field
-    :param df: the dataframe to process
-    :param field: the field to work on
-    :param new_field: the name of the new field if any
-    :return: the processed dataframe
-    """
-    if new_field is None:
-        new_field = field
-    df[new_field] = df[field] - df[field].shift(1)
-    df[new_field].fillna(df[field], inplace=True)
-    df[new_field].fillna(0, inplace=True)
-    df[new_field] = df[new_field].clip(lower=0)
-
-    return df
-
-
 def _preprocess_whole_df(df: pu.DataFrame):
     """
     Preprocess the final produced dataframe with all daily totals
@@ -255,8 +230,8 @@ def _preprocess_whole_df(df: pu.DataFrame):
         """
 
         df = df[df[COUNTRY_REGION] == country].copy()
-        df = subtract(df, CONFIRMED, NEW_CASES)
-        df = subtract(df, DEATHS, NEW_DEATHS)
+        df.subtract_previous(CONFIRMED, NEW_CASES)
+        df.subtract_previous(DEATHS, NEW_DEATHS)
 
         return df
 
@@ -375,23 +350,12 @@ def _get_vaccinations_dataset():
 
         return df
 
-    # TODO decide if you should fill in NAs or just leave them. If fill_nas, pass this in as post_processor:
-    # CustomDataset(path_or_url=VACCINATIONS_FILE, on=[COUNTRY_REGION, DATE_RECORDED], data_processor=processor,
-    #                          post_processor=fill_nas)
-    def fill_nas(df):
-        for field in VACCINE_FIELDS[2:]:
-            df[field] = df[field].fillna(0)
-
-        return df
-
     def compute_daily_vaccines(df):
-        df = fill_nas(df)
-
         df[DAILY_VACCINATIONS] = 0
 
         for country in df[COUNTRY_REGION].unique():
             country_df = df[df[COUNTRY_REGION] == country].copy()
-            country_df = subtract(country_df, TOTAL_VACCINATIONS, DAILY_VACCINATIONS)
+            country_df.subtract_previous(TOTAL_VACCINATIONS, DAILY_VACCINATIONS)
             df.replace_rows(COUNTRY_REGION, country, country_df)
 
         return df
@@ -400,7 +364,7 @@ def _get_vaccinations_dataset():
                          post_processor=compute_daily_vaccines)
 
 
-def load(output=DATA_FILE):
+def load(output=const.DATA_FILE):
     """
     Load, save and return the processed dataframe
     :param output: the output path for the data file. Leave as None if you don't want to write to file
