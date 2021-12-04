@@ -7,10 +7,13 @@ import argparse
 
 import pandas as pd
 import os
-
-import const
+import sys
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(os.path.join(basedir, '..'))
+
+import const
+from const import enable_logging, log
 
 import pandasutils as pu
 from fields import *
@@ -87,11 +90,6 @@ parser.add_argument('-o', '--output', help='The path to the output file', requir
 
 args = parser.parse_args()
 _output_messages=False
-
-
-def _log(msg):
-    if _output_messages:
-        print(msg)
 
 
 def _prepare_output(output=None):
@@ -220,39 +218,9 @@ def _preprocess_whole_df(df: pu.DataFrame):
     :param df: the dataframe to preprocess
     :return: the preprocessed data frame
     """
-
-    def handle_country_daily_cases(df, country):
-        """
-        Calculates the daily numbers from the given totals for the specified country
-        :param df: the dataframe to perform the calculations on
-        :param country: the country to filter the dataframe with
-        :return: the processed dataframe
-        """
-
-        df = df[df[COUNTRY_REGION] == country].copy()
-        df.subtract_previous(CONFIRMED, NEW_CASES)
-        df.subtract_previous(DEATHS, NEW_DEATHS)
-
-        return df
-
-    def daily_cases_preprocessor(df):
-        """
-        Processes the dataframe to convert the total confirmed cases to daily new cases
-        :param df: the dataframe to work on
-        :return: the processed dataframe
-        """
-        df[NEW_CASES] = 0
-        df[NEW_DEATHS] = 0
-
-        for country in df[COUNTRY_REGION].unique():
-            country_df = handle_country_daily_cases(df, country) # TODO for US data, it seems very erratic and differing new cases numbers compared to https://91-divoc.com/pages/covid-visualization/
-            # TODO check out this article: https://towardsdatascience.com/covid-19-data-processing-58aaa3663f6, think about using time series instead
-            df.replace_rows(COUNTRY_REGION, country, country_df)
-
-        return df
-
     df = df.group_aggregate([DATE_RECORDED, COUNTRY_REGION])
-    df = daily_cases_preprocessor(df)
+    df.subtract_previous(CONFIRMED, COUNTRY_REGION, NEW_CASES)
+    df.subtract_previous(DEATHS, COUNTRY_REGION, NEW_DEATHS)
 
     return df
 
@@ -264,7 +232,7 @@ def _do_merges(df):
     :return: the merged data frame
     """
     for custom in ADDITIONAL_DATASETS:
-        _log(f'Merging dataset from {custom.path_or_url}...')
+        log(f'Merging dataset from {custom.path_or_url}...')
         df = custom.merge(df)
 
     return df
@@ -275,7 +243,7 @@ def _load_data(output):
     Load the daily data into one dataframe
     :param output: the output path for the data file
     """
-    _log('Loading and processing daily COVID-19 cases data...')
+    log('Loading and processing daily COVID-19 cases data...')
     data_retriever = _get_data_retriever()
 
     final_df = data_retriever.retrieve()
@@ -284,8 +252,7 @@ def _load_data(output):
     final_df.field_convert(DATE_RECORDED, pd.to_datetime)
     final_df = final_df.sort_values(DATE_RECORDED, ignore_index=True)
 
-    # vaccine_data = _load_vaccine_data()
-    _log('Merging daily cases data with custom datasets...')
+    log('Merging daily cases data with custom datasets...')
     merged = _do_merges(final_df)
     merged = merged[merged[COUNTRY_REGION].isin(final_df[COUNTRY_REGION])]
 
@@ -293,10 +260,10 @@ def _load_data(output):
     final_df = _processing_funcs(final_df)
 
     if output:
-        _log(f'Writing data to {output}...')
+        log(f'Writing data to {output}...')
         final_df.to_csv(path_or_buf=output, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
-        _log(f'Data written to {output}...')
+        log(f'Data written to {output}...')
 
     return final_df
 
@@ -340,10 +307,11 @@ def _get_vaccinations_dataset():
     Define the CustomDataset for vaccinations data and return it
     :return: CustomDataset for vaccinations data
     """
-    _log(f'Loading vaccinations data from {VACCINATIONS_URL}')
+    log(f'Loading vaccinations data from {VACCINATIONS_URL}')
 
     def processor(df):
-        df.rename({'Country_Region': COUNTRY_REGION, 'Date': DATE_RECORDED, 'Doses_admin': TOTAL_VACCINATIONS}, inplace=True, axis=1)
+        df.rename({'Country_Region': COUNTRY_REGION, 'Date': DATE_RECORDED, 'Doses_admin': TOTAL_VACCINATIONS},
+                  inplace=True, axis=1)
         df.field_convert(DATE_RECORDED, pd.to_datetime)
         df = df.group_aggregate([DATE_RECORDED, COUNTRY_REGION])
         df = df[VACCINE_FIELDS]
@@ -351,12 +319,7 @@ def _get_vaccinations_dataset():
         return df
 
     def compute_daily_vaccines(df):
-        df[DAILY_VACCINATIONS] = 0
-
-        for country in df[COUNTRY_REGION].unique():
-            country_df = df[df[COUNTRY_REGION] == country].copy()
-            country_df.subtract_previous(TOTAL_VACCINATIONS, DAILY_VACCINATIONS)
-            df.replace_rows(COUNTRY_REGION, country, country_df)
+        df.subtract_previous(TOTAL_VACCINATIONS, COUNTRY_REGION, DAILY_VACCINATIONS)
 
         return df
 
@@ -382,7 +345,7 @@ def load(output=const.DATA_FILE):
     add_processing_function(drop_rep_ireland)
     add_custom_dataset(_get_vaccinations_dataset())
     df = _load_data(output)
-    _log('Finished')
+    log('Finished')
 
     return df
 
@@ -392,9 +355,7 @@ def main():
     The main entrypoint into this script
     :return: the loaded dataframe
     """
-    global _output_messages
-    _output_messages = True  # if run from main, output messages to stdin
-
+    enable_logging()
     output = args.output
 
     if output and os.path.isfile(output):

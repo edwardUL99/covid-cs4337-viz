@@ -1,6 +1,10 @@
 import datetime
 import os
+import sys
 import argparse
+
+basedir = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(os.path.join(basedir, '..'))
 
 import dash
 import pandas as pd
@@ -15,9 +19,11 @@ from data import pandasutils as pu
 from data.fields import *
 
 import const
+from const import enable_logging, log
 
 from enum import Enum
 
+enable_logging(__name__ == '__main__')
 
 app = dash.Dash(__name__,
                 external_stylesheets=['https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css'])
@@ -46,12 +52,14 @@ def get_data():
         print(f'{DATA_FILE} does not exist. Run data.py before calling this script')
         exit(1)
     else:
+        log(f'Loading data from {DATA_FILE} into a DataFrame')
         df = pu.from_csv(DATA_FILE)
         df.field_convert(DATE_RECORDED, pd.to_datetime)
 
         return df
 
 
+log('Starting')
 df = get_data()
 country_dropdown = du.ColumnDropdown(df, COUNTRY_REGION, className='w-50')
 country_dropdown_multiple = du.ColumnDropdown(df, COUNTRY_REGION, className='w-50',
