@@ -25,6 +25,7 @@ dbc.Container([
             html.Div([
                 html.Div(id='covid-cases'),
                 html.Div(id='covid-deaths'),
+                html.Div(id='vaccination-proportions'),
                 html.Div(id='covid-cases-deaths')
             ])
         ], className='align-items-center'
@@ -45,7 +46,17 @@ dbc.Container([
                             {'label': 'Compare New Deaths', 'value': 3},
                             {'label': 'Compare Deaths', 'value': 4}
                         ],
-                        value=1
+                        value=1,
+                    )
+                ]
+            ),
+            dbc.Col(
+                [
+                    dbc.Checklist(
+                        id='by_thousand',
+                        options=[
+                            {'label': 'Per 100,000', 'value': 'True'}
+                        ]
                     )
                 ]
             )
@@ -55,5 +66,19 @@ dbc.Container([
         [
             html.Div(id='compare-covid')
         ], className='align-items-center'
+    ),
+    dbc.Row(
+        [
+            dbc.Col(
+                [
+                    country_dropdown_multiple1
+                ]
+            )
+        ]
+    ),
+    dbc.Row(
+        [
+            html.Div(id='compare-vaccinations')
+        ]
     )
 ])

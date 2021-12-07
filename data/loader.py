@@ -2,12 +2,12 @@
 This module retrieves the COVID-19 data from the github repository (already pulled to a specified local repo),
 and persists it in data.csv. It is intended to be ran as a main script to be used separately to main.py
 """
-import csv
 import argparse
-
-import pandas as pd
+import csv
 import os
 import sys
+
+import pandas as pd
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(os.path.join(basedir, '..'))
@@ -22,6 +22,8 @@ VACCINATIONS_URL = 'https://raw.githubusercontent.com/govex/COVID-19/master/data
                    'time_series_covid19_vaccine_global.csv'
 GITHUB_URL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/' \
              'csse_covid_19_time_series/'
+POPULATIONS_URL = 'https://population.un.org/wpp/Download/Files/1_Indicators%20(Standard)/CSV_FILES/' \
+                  'WPP2019_TotalPopulationBySex.csv'
 # The format for parsing dates
 DATE_FORMAT = '%m/%d/%y'
 # The fields of the downloaded data we want to keep
@@ -35,19 +37,20 @@ class CustomDataset:
     """
     This class represents an additional dataset to merge into the main CSSE dataframe
     """
-    def __init__(self, path_or_url: str, on, how: str = 'outer', data_processor=None, post_processor=None):
+
+    def __init__(self, path_or_url: str, on, how: str = 'outer', pre_processor=None, post_processor=None):
         """
         Initialise the custom dataset object
         :param path_or_url: the path or url to the file to read in
         :param on: a string or list of column names to merge on
         :param how: how to perform the merge
-        :param data_processor: an optional processor to operate on the read in data
+        :param pre_processor: an optional processor to operate on the read in data before merging
         :param post_processor: a processing function to process the merged dataframe after merging
         """
         self.path_or_url = path_or_url
         self.on = on
         self.how = how
-        self.data_processor = data_processor
+        self.pre_processor = pre_processor
         self.post_processor = post_processor
         self.df = None
 
@@ -59,14 +62,14 @@ class CustomDataset:
         if self.df is None:
             self.df = pu.from_csv(self.path_or_url)
 
-            if self.data_processor:
-                self.df = self.data_processor(self.df)
+            if self.pre_processor:
+                self.df = self.pre_processor(self.df)
 
         return self.df
 
     def merge(self, df):
         """
-        Merges the provided def with the df behind this object. The df provided is used as the left dataframe
+        Merges the provided df with the df behind this object. The df provided is used as the left dataframe
         :param df: the left dataframe to merge
         :return: the merged dataframe
         """
@@ -83,13 +86,17 @@ class CustomDataset:
 ADDITIONAL_DATASETS: list[CustomDataset] = []
 
 parser = argparse.ArgumentParser(description='Pulls and cleans CSSE GIS Covid-19 data and vaccination data into a '
-                                             'single DataFrame. By default, it pulls data into the local directory '
-                                             'under the data directory')
+                                             'single DataFrame.')
 
 parser.add_argument('-o', '--output', help='The path to the output file', required=False, default=const.DATA_FILE)
+parser.add_argument('-y', '--accept-overwrite', default=False, required=False, help='If --output already exists, '
+                                                                                    'overwrite it without prompting',
+                    action='store_true')
 
 args = parser.parse_args()
-_output_messages=False
+_accept_overwrite = args.accept_overwrite
+
+_output_messages = False
 
 
 def _prepare_output(output=None):
@@ -100,12 +107,13 @@ def _prepare_output(output=None):
     """
 
     if output is None:
-        output = const.FILE_DIR
+        output_dir = const.FILE_DIR
     else:
-        output = os.path.dirname(output)
+        output_dir = os.path.dirname(output)
+        output_dir = os.getcwd() if output_dir == '' else output_dir
 
-    if not os.path.isdir(output):
-        os.makedirs(output)
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
 
 
 def _date_to_string(date):
@@ -194,22 +202,7 @@ def _get_data_retriever() -> DataRetriever:
     Set up the DataRetriever for use to read in the csse covid 19 data
     :return: the data retriever to retrieve the data
     """
-
     return GithubDataRetriever()
-
-
-def _preprocess_df(df: pu.DataFrame, date):
-    """
-    Preprocesses the loaded dataframe, keeping only fields we're interested in
-    :param df: the dataframe to preprocess
-    :param date: the date this of this day
-    :return: the preprocessed dataframe
-    """
-    # Some of the data files had Country_Region instead of Country/Region, so if that is so, rename it to Country/Region
-    preprocessed_df = df.fill_required(FIELDS_TO_KEEP, rename_mapper={'Country_Region': COUNTRY_REGION})
-    preprocessed_df[DATE_RECORDED] = date
-
-    return preprocessed_df
 
 
 def _preprocess_whole_df(df: pu.DataFrame):
@@ -218,7 +211,8 @@ def _preprocess_whole_df(df: pu.DataFrame):
     :param df: the dataframe to preprocess
     :return: the preprocessed data frame
     """
-    df = df.group_aggregate([DATE_RECORDED, COUNTRY_REGION])
+    df = df.group_aggregate([DATE_RECORDED, COUNTRY_REGION, CONFIRMED])
+    df = df.drop_duplicates(subset=[DATE_RECORDED, COUNTRY_REGION], keep='last')
     df.subtract_previous(CONFIRMED, COUNTRY_REGION, NEW_CASES)
     df.subtract_previous(DEATHS, COUNTRY_REGION, NEW_DEATHS)
 
@@ -249,8 +243,6 @@ def _load_data(output):
     final_df = data_retriever.retrieve()
 
     final_df = _preprocess_whole_df(final_df)
-    final_df.field_convert(DATE_RECORDED, pd.to_datetime)
-    final_df = final_df.sort_values(DATE_RECORDED, ignore_index=True)
 
     log('Merging daily cases data with custom datasets...')
     merged = _do_merges(final_df)
@@ -258,6 +250,8 @@ def _load_data(output):
 
     final_df = merged
     final_df = _processing_funcs(final_df)
+
+    final_df = final_df.sort_values(DATE_RECORDED, ignore_index=True)
 
     if output:
         log(f'Writing data to {output}...')
@@ -323,8 +317,76 @@ def _get_vaccinations_dataset():
 
         return df
 
-    return CustomDataset(path_or_url=VACCINATIONS_URL, on=[COUNTRY_REGION, DATE_RECORDED], data_processor=processor,
+    return CustomDataset(path_or_url=VACCINATIONS_URL, on=[COUNTRY_REGION, DATE_RECORDED], pre_processor=processor,
                          post_processor=compute_daily_vaccines)
+
+
+def _get_populations_dataset():
+    """
+    Loads data about populations for each country into the dataset
+    :return: the CustomDataset for populations data
+    """
+    log(f'Loading populations data from {POPULATIONS_URL}')
+
+    def processor(df):
+        import datetime
+
+        df = df[['Location', 'Time', 'PopTotal']].copy()
+        df['Location'] = df['Location'].map(lambda x: 'US' if x == 'United States of America (and dependencies)' else x)
+        df['Time'] = pd.to_datetime(df['Time'], format='%Y')
+        df = df[df['Time'].dt.year == datetime.date.today().year].copy()
+        df['PopTotal'] = df['PopTotal'].astype('uint32')
+        df = df[df['PopTotal'] == df.groupby('Location')['PopTotal'].transform('max')]
+        df = df.rename(columns={'Location': COUNTRY_REGION, 'PopTotal': POPULATION})
+        df[POPULATION] = df[POPULATION].apply(lambda x: x * 1000)
+        df.drop('Time', inplace=True, axis=1)
+
+        return df
+
+    def post_processor(df):
+        df = df[~df[POPULATION].isna()].copy()
+        df[POPULATION] = df[POPULATION].astype('uint32')
+        df = df.group_aggregate([COUNTRY_REGION, DATE_RECORDED])
+
+        return df
+
+    return CustomDataset(path_or_url=POPULATIONS_URL, on=COUNTRY_REGION, pre_processor=processor,
+                         post_processor=post_processor)
+
+
+def calculate_population_metrics(df):
+    """
+    Calculates per 100000 metrics based off the population field
+    :param df: the dataframe to perform calculations on
+    :return: the dataframe with calculations calculated on and population column dropped as it is unnecessary
+    """
+    log('Using population data to calculate population metrics...')
+
+    df[UNVACCINATED] = df[POPULATION] - df[FULLY_VACCINATED]
+
+    fields = [
+        {
+            'name': CASES_PER_THOUSAND,
+            'conversion_field': NEW_CASES
+        },
+        {
+            'name': DEATHS_PER_THOUSAND,
+            'conversion_field': NEW_DEATHS
+        }
+    ]
+
+    for conversion in fields:
+        field = conversion['name']
+        conversion_field = conversion['conversion_field']
+        df[field] = (df[conversion_field] / df[POPULATION]) * 100000
+        df[field] = df[field].round(decimals=2)
+
+    df[PERCENTAGE_VACCINATED] = (df[FULLY_VACCINATED] / df[POPULATION]) * 100
+    df[PERCENTAGE_VACCINATED] = df[PERCENTAGE_VACCINATED].round(decimals=1)
+
+    df.drop(POPULATION, axis=1, inplace=True)
+
+    return df
 
 
 def load(output=const.DATA_FILE):
@@ -343,7 +405,9 @@ def load(output=const.DATA_FILE):
         os.remove(output)
 
     add_processing_function(drop_rep_ireland)
+    add_processing_function(calculate_population_metrics)
     add_custom_dataset(_get_vaccinations_dataset())
+    add_custom_dataset(_get_populations_dataset())
     df = _load_data(output)
     log('Finished')
 
@@ -357,8 +421,9 @@ def main():
     """
     enable_logging()
     output = args.output
+    exists = os.path.isfile(output)
 
-    if output and os.path.isfile(output):
+    if not _accept_overwrite and exists:
         confirm = input(f'{output} already exists. Proceeding will overwrite it. Do you wish to proceed? (Y/n)')
 
         if confirm.strip().lower() != 'n':
@@ -366,6 +431,8 @@ def main():
         else:
             print('Cancelling...')
             exit(0)
+    elif exists:
+        log(f'{output} exists but Accept Overwrite specified, proceeding...')
 
     return load(output)
 

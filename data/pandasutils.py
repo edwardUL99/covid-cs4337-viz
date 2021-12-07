@@ -28,7 +28,7 @@ class DataFrame(pd.DataFrame):
         """
         return DataFrame
 
-    def group_aggregate(self, group_by):
+    def group_aggregate(self, group_by, avg=False):
         """
         This function groups by the provided group_by fields and then aggregates using the sum function.
 
@@ -44,11 +44,17 @@ class DataFrame(pd.DataFrame):
         2020-01-01    1        65.00
         2020-01-02    1        10.00
         :param group_by: the field(s) to group by
+        :param avg: average the field instead of sum
         :return: the aggregated dataframe
         """
-        return self.groupby(group_by) \
-            .sum() \
-            .reset_index()
+        group_by = self.groupby(group_by)
+
+        if avg:
+            group_by = group_by.mean()
+        else:
+            group_by = group_by.sum()
+
+        return group_by.reset_index()
 
     def fill_required(self, required_fields, rename_mapper=None):
         """
@@ -91,6 +97,7 @@ class DataFrame(pd.DataFrame):
             df = self.copy()
 
         df[new_field] = df[field] - df.groupby(group_field)[field].shift(1)
+        df[new_field] = df[new_field].clip(lower=0)
 
         return df if not inplace else None
 
@@ -159,10 +166,12 @@ class DataFrame(pd.DataFrame):
         return None if inplace else df
 
     @classmethod
-    def from_pandas(cls, df):
+    def from_pandas(cls, df, convert_datetime=None, datetime_format=None):
         """
         Constructs a pandasutils.DataFrame from the pandas df
         :param df: the pandas dataframe to construct from
+        :param convert_datetime: an optional name of a field to convert to pandas datetime
+        :param datetime_format: an optional format for the datetime
         :return: the utils DataFrame
         """
         data = {}
@@ -170,40 +179,54 @@ class DataFrame(pd.DataFrame):
         for col in df.columns:
             data[col] = df[col]
 
-        return cls(data)
+        data = cls(data)
+
+        if convert_datetime:
+            if datetime_format:
+                data[convert_datetime] = pd.to_datetime(data[convert_datetime], format=datetime_format)
+            else:
+                data[convert_datetime] = pd.to_datetime(data[convert_datetime])
+
+        return data
 
     @classmethod
-    def from_csv(cls, csv_file, **kwargs):
+    def from_csv(cls, csv_file, convert_datetime=None, datetime_format=None, **kwargs):
         """
         Constructs the dataframe from the provided csv file
         :param csv_file: the csv file to construct the dataframe from
+        :param convert_datetime: an optional name of a field to convert to pandas datetime
+        :param datetime_format: an optional format for the datetime
         :param kwargs: keyword arguments to pass into read_csv
         :return: the constructed dataframe
         """
         df = pd.read_csv(csv_file, **kwargs)
 
-        return DataFrame.from_pandas(df)
+        return DataFrame.from_pandas(df, convert_datetime=convert_datetime, datetime_format=datetime_format)
 
 
-def from_csv(csv_file, **kwargs) -> DataFrame:
+def from_csv(csv_file, convert_datetime=None, datetime_format=None, **kwargs) -> DataFrame:
     """
     A utility function for calling
     pu.DataFrame.from_csv(csv_file)
 
     :param csv_file: the CSV file to read from
     :param kwargs: key word arguments to pass into the csv method
+    :param convert_datetime: an optional name of a field to convert to pandas datetime
+    :param datetime_format: an optional format for the datetime
     :return: the constructed dataframe
     """
-    return DataFrame.from_csv(csv_file, **kwargs)
+    return DataFrame.from_csv(csv_file, convert_datetime=convert_datetime, datetime_format=datetime_format, **kwargs)
 
 
-def from_pandas(df) -> DataFrame:
+def from_pandas(df, convert_datetime=None, datetime_format=None) -> DataFrame:
     """
     A utility function for calling pu.DataFrame.from_pandas(df)
     :param df: the pandas dataframe
+    :param convert_datetime: an optional name of a field to convert to pandas datetime
+    :param datetime_format: an optional format for the datetime
     :return: the utils dataframe
     """
-    return DataFrame.from_pandas(df)
+    return DataFrame.from_pandas(df, convert_datetime=convert_datetime, datetime_format=datetime_format)
 
 
 def convert_date_field_to_week(df: DataFrame, date_field: str, inplace=True, week_number=True):

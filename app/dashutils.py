@@ -269,7 +269,10 @@ def _construct_figure(df, figure_func, x, y, graph_object, **kwargs):
     if graph_object:
         return figure_func(x=df[x], y=df[y], **kwargs)
     else:
-        return figure_func(df, x=x, y=y, **kwargs)
+        if x is not None and y is not None:
+            return figure_func(df, x=x, y=y, **kwargs)
+        else:
+            return figure_func(df, **kwargs)
 
 
 def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=None, yaxis=None, graph_object=False,
