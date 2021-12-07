@@ -25,8 +25,7 @@ dbc.Container([
             html.Div([
                 html.Div(id='covid-cases'),
                 html.Div(id='covid-deaths'),
-                html.Div(id='vaccination-proportions'),
-                html.Div(id='covid-cases-deaths')
+                html.Div(id='vaccination-proportions')
             ])
         ], className='align-items-center'
     ),

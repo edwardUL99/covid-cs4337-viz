@@ -20,6 +20,8 @@ from data.fields import *
 import const
 from const import enable_logging, log
 
+from transformations import map_counts_to_categorical, convert_daily_to_week, filter_by_value_and_date
+
 from enum import Enum
 
 enable_logging(__name__ == '__main__')
@@ -33,45 +35,6 @@ parser.add_argument('-f', '--file', default=const.DATA_FILE, required=False, hel
 args = parser.parse_args()
 
 DATA_FILE = args.file
-
-# TODO look at this website for visualisation ideas: https://ourworldindata.org/coronavirus/country/united-states
-
-
-COUNT = 'Count'
-CASES_COUNT = 'Cases'
-DEATHS_COUNT = 'Deaths'
-FULLY_VACCINATED_COUNT = 'Fully Vaccinated'
-UNVACCINATED_COUNT = 'Unvaccinated'
-COUNT_TYPE = 'Type'
-
-
-# def get_vaccine_data(df):
-#     """
-#     Calculate vaccine data from the provided data frame
-#     :param df: the base dataframe
-#     :return: the dataframe that makes vaccine comparison possible
-#     """
-#     df_cases = df[[COUNTRY_REGION, DATE_RECORDED, NEW_CASES]].copy()
-#     df_deaths = df[[COUNTRY_REGION, DATE_RECORDED, DEATHS_PER_THOUSAND]].copy()
-#     df_full_vaccine = df[[COUNTRY_REGION, DATE_RECORDED, FULLY_VACCINATED]].copy()
-#     df_unvaccinated = df[[COUNTRY_REGION, DATE_RECORDED, UNVACCINATED]].copy()
-#
-#     renamings = [
-#         (df_cases, {NEW_CASES: COUNT}, CASES_COUNT),
-#         (df_deaths, {DEATHS_PER_THOUSAND: COUNT}, DEATHS_COUNT),
-#         (df_full_vaccine, {FULLY_VACCINATED: COUNT}, FULLY_VACCINATED_COUNT),
-#         (df_unvaccinated, {UNVACCINATED: COUNT}, UNVACCINATED_COUNT)
-#     ]
-#
-#     for df1, rename_mapper, count_type in renamings:
-#         df1.rename(columns=rename_mapper, inplace=True)
-#         df1[COUNT_TYPE] = count_type
-#
-#     main_df = df_cases.append(df_deaths)
-#     main_df = main_df.append(df_full_vaccine)
-#     main_df = main_df.append(df_unvaccinated)
-#
-#     return main_df.sort_values(by=DATE_RECORDED)
 
 
 def get_data():
@@ -124,7 +87,7 @@ def convert_date_range(start_date, end_date):
     Convert the string dates to datetime objects
     :param start_date: the start date
     :param end_date: the end date
-    :return: the parsed datetime obejcts start and end
+    :return: the parsed datetime objects start and end
     """
     start_date_obj = datetime.datetime(year=2021, month=1, day=1, hour=0, minute=0, second=0)
     end_date_obj = datetime.datetime.today()
@@ -137,29 +100,6 @@ def convert_date_range(start_date, end_date):
         end_date_obj = datetime.datetime.fromisoformat(end_date)
 
     return start_date_obj, end_date_obj
-
-
-def filter_by_value_and_date(df, value_field, date_field, value, start_date, end_date, multi_value=False):
-    """
-    Filters the dataframe using date field, the value and start and end dates
-    :param df: the dataframe to filter
-    :param value_field: the name of the value field to filter by
-    :param date_field: the name of the date field to filter by
-    :param value: the value to use in filtering
-    :param start_date: the start date of the date range
-    :param end_date: the end date of the date range
-    :param multi_value: if true, the value field will be treated as a list of values
-    :return: the filtered dataframe
-    """
-    if multi_value:
-        data = df[df[value_field].isin(value)]
-    else:
-        data = df[df[value_field] == value]
-
-    data = data[data[date_field] >= start_date]
-    data = data[data[date_field] <= end_date]
-
-    return data
 
 
 @date_value_callback([Output('covid-cases', 'children'), Output('covid-deaths', 'children')])
@@ -181,8 +121,7 @@ def covid_cases_deaths(value, start_date, end_date, by_week):
         data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value, start_date, end_date)
 
         if by_week:
-            pu.convert_date_field_to_week(data, DATE_RECORDED, week_number=False)
-            data = data.group_aggregate([COUNTRY_REGION, WEEK])
+            data = convert_daily_to_week(data)
 
         graph_config_cases = du.GraphConfig() \
             .x(data[date_field]) \
@@ -215,32 +154,13 @@ def covid_cases_deaths(value, start_date, end_date, by_week):
         ), ''
 
 
-def _map_vaccination_numbers(df):
-    selection_base = [COUNTRY_REGION]
-    df_fully = df[selection_base + [FULLY_VACCINATED]].copy()
-    df_partially = df[selection_base + [PARTIALLY_VACCINATED]].copy()
-    df_unvaccinated = df[selection_base + [UNVACCINATED]].copy()
-
-    for df1, field in [(df_fully, FULLY_VACCINATED), (df_partially, PARTIALLY_VACCINATED),
-                       (df_unvaccinated, UNVACCINATED)]:
-        df1.rename(columns={field: 'Count'}, inplace=True)
-        df1['Type'] = field
-
-    main_df = df_fully.append(df_partially)
-    main_df = main_df.append(df_unvaccinated)
-
-    main_df = main_df.drop_duplicates(subset=[COUNTRY_REGION, 'Type'], keep='last')
-
-    return main_df
-
-
 @date_value_callback([Output('vaccination-proportions', 'children')], DEFAULT_INPUTS[:-1])
 def covid_vaccination_proportions(value, start_date, end_date):
     start_date, end_date = convert_date_range(start_date, end_date)
 
     if value:
         data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value, start_date, end_date)
-        data = _map_vaccination_numbers(data)
+        data = map_counts_to_categorical(data, [COUNTRY_REGION], [FULLY_VACCINATED, PARTIALLY_VACCINATED, UNVACCINATED])
 
         graph = du.create_plotly_figure(data, 'pie', x=None, y=None, values='Count', names='Type',
                                         title='Vaccination Proportions')
@@ -249,37 +169,6 @@ def covid_vaccination_proportions(value, start_date, end_date):
             dcc.Graph(
                 id='vaccination-proportions',
                 figure=graph
-            )
-        )]
-    else:
-        return ['']
-
-
-@date_value_callback([Output('covid-cases-deaths', 'children')])
-def covid_confirmed_death(value, start_date, end_date, by_week):
-    date_field = WEEK if by_week else DATE_RECORDED
-    date_title = 'Week' if by_week else 'Day'
-
-    start_date, end_date = convert_date_range(start_date, end_date)
-
-    if value:
-        data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value,
-                                        start_date, end_date)
-
-        if by_week:
-            pu.convert_date_field_to_week(data, DATE_RECORDED, week_number=False)
-            data = data.group_aggregate([COUNTRY_REGION, WEEK])
-
-        fig = make_subplots(1, 2)
-        fig.add_trace(du.create_plotly_figure(data, 'bar', x=date_field, y=NEW_CASES, graph_object=True), row=1, col=1)
-        fig.add_trace(
-            du.create_plotly_figure(data, 'scatter', x=date_field, y=NEW_DEATHS, line=dict(color='red'), graph_object=True),
-            row=1, col=1)
-
-        return [html.Div(
-            dcc.Graph(
-                id='covid-cases-deaths-graph',
-                figure=fig
             )
         )]
     else:
@@ -350,8 +239,7 @@ def compare_country_cases(values, compare_cases_options, by_thousand, start_date
                                         start_date, end_date, multi_value=True)
 
         if by_week:
-            pu.convert_date_field_to_week(data, DATE_RECORDED, week_number=False)
-            data = data.group_aggregate([COUNTRY_REGION, WEEK])
+            data = convert_daily_to_week(data)
 
         graph = du.create_plotly_figure(data, 'line', x=date_field, y=column, color=COUNTRY_REGION,
                                         title=title,
@@ -401,8 +289,6 @@ def main():
     The main entrypoint into the program
     :return: None
     """
-    import sys
-
     debug = '-d' in sys.argv
     app.run_server(debug=debug)
 

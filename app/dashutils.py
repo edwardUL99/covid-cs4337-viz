@@ -306,7 +306,7 @@ def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=No
 
     new_kwargs = {**extra_args, **kwargs, 'graph_object': graph_object}
 
-    fig = _construct_figure(df, graph_funcs[figure_type],  **new_kwargs) # graph_funcs[figure_type](df, **new_kwargs)
+    fig = _construct_figure(df, graph_funcs[figure_type],  **new_kwargs)
 
     if hasattr(fig, 'update_layout'):
         if title:
