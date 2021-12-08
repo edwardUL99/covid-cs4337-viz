@@ -2,11 +2,11 @@
 This module contains methods used for transforming dataframes for visualising them
 """
 from data.fields import DATE_RECORDED, COUNTRY_REGION, WEEK, LINEAGE, NUMBER_DETECTIONS_VARIANT, VARIANT, \
-    PERCENT_VARIANT, VARIANT_FIELDS
+    PERCENT_VARIANT, VARIANT_FIELDS, NEW_CASES, NEW_DEATHS, CASES_PER_THOUSAND, DEATHS_PER_THOUSAND
 from data import pandasutils as pu
 
 
-def map_counts_to_categorical(df, selection_base, columns, label_mappings=None):
+def map_counts_to_categorical(df, selection_base, columns, label_mappings=None, keep_max_value=True):
     """
     This method maps counts of the columns in the columns list to a categorical label
     For example, you can use it to map number of cases to a label NewCases, count of deaths
@@ -16,6 +16,7 @@ def map_counts_to_categorical(df, selection_base, columns, label_mappings=None):
     :param selection_base: the list of columns to act as a base for selecting the fields
     :param columns: the list of columns to extract and label
     :param label_mappings: an optional map to map the field name to a more friendly label name
+    :param keep_max_value: drops duplicates by keeping the maximum value
     :return: the categorically labelled dataframe
     """
     def keep_max(df1, group_by, field):
@@ -37,10 +38,10 @@ def map_counts_to_categorical(df, selection_base, columns, label_mappings=None):
         subdf['Type'] = label_mappings.get(label, label)
 
     main_df = dataframes[0][0]
-    main_df = keep_max(main_df, selection_base + ['Type'], 'Count')
+    main_df = keep_max(main_df, selection_base + ['Type'], 'Count') if keep_max_value else main_df
 
     for df1, _ in dataframes[1:]:
-        df1 = keep_max(df1, selection_base + ['Type'], 'Count')
+        df1 = keep_max(df1, selection_base + ['Type'], 'Count') if keep_max_value else df1
         main_df = main_df.append(df1)
 
     main_df = main_df.drop_duplicates(subset=selection_base + ['Type'], keep='last')
@@ -118,3 +119,25 @@ def compute_variation_proportions(df):
     df = df.reset_index()
 
     return df
+
+
+def compute_monthly_cases_deaths(df, by_thousand):
+    """
+    Compute cases and deaths by month
+    :param df: the dataframe to process
+    :param by_thousand: true to display cases and deaths by 1000
+    :return: the processed dataframe and the labels used
+    """
+    import pandas as pd
+
+    cases_deaths_fields = [CASES_PER_THOUSAND, DEATHS_PER_THOUSAND] if by_thousand else [NEW_CASES, NEW_DEATHS]
+
+    df = df[[COUNTRY_REGION, DATE_RECORDED] + cases_deaths_fields].copy()
+    df['Month'] = df[DATE_RECORDED].apply(lambda x: f'{x.month}-{x.year}')
+    df['Month'] = pd.to_datetime(df['Month'], format='%m-%Y')
+    df = df.group_aggregate([COUNTRY_REGION, 'Month'], avg=True)
+    df.sort_values(by='Month', inplace=True)
+
+    df = map_counts_to_categorical(df, [COUNTRY_REGION, 'Month'], cases_deaths_fields, keep_max_value=False)
+
+    return df, cases_deaths_fields

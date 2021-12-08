@@ -25,7 +25,7 @@ GITHUB_URL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/c
 # The format for parsing dates
 DATE_FORMAT = '%m/%d/%y'
 # The fields of the downloaded data we want to keep
-FIELDS_TO_KEEP = ALL_FIELDS
+FIELDS_TO_KEEP = CSSE_FIELDS
 
 # Additional preprocessors to add while loading data
 ADDITIONAL_PROCESSORS = []

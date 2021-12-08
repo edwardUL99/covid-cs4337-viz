@@ -30,7 +30,7 @@ class CustomDataset:
     This class represents an additional dataset to merge into the main CSSE dataframe
     """
 
-    def __init__(self, path_or_url: str, on, how: str = 'outer', pre_processor=None, post_processor=None):
+    def __init__(self, path_or_url: str, on, how: str = 'outer', pre_processor=None, post_processor=None, **kwargs):
         """
         Initialise the custom dataset object
         :param path_or_url: the path or url to the file to read in
@@ -38,6 +38,7 @@ class CustomDataset:
         :param how: how to perform the merge
         :param pre_processor: an optional processor to operate on the read in data before merging
         :param post_processor: a processing function to process the merged dataframe after merging
+        :param kwargs: arguments to pass into the function reading the dataframe
         """
         self.path_or_url = path_or_url
         self.on = on
@@ -45,6 +46,7 @@ class CustomDataset:
         self.pre_processor = pre_processor
         self.post_processor = post_processor
         self.df = None
+        self.pandas_args = kwargs
 
     def read(self):
         """
@@ -52,7 +54,7 @@ class CustomDataset:
         :return: the processed dataframe (also sets self.df
         """
         if self.df is None:
-            self.df = pu.from_csv(self.path_or_url)
+            self.df = pu.from_csv(self.path_or_url, **self.pandas_args)
 
             if self.pre_processor:
                 self.df = self.pre_processor(self.df)
@@ -156,7 +158,7 @@ def _get_eu_variant_dataset():
 
     def processor(df):
         df = df.rename(columns={'country': COUNTRY_REGION, 'year_week': DATE_RECORDED, VARIANT: LINEAGE})
-        df = df[VACCINE_FIELDS].copy()
+        df = df[VARIANT_FIELDS].copy()
         df[DATE_RECORDED] = df[DATE_RECORDED].apply(lambda x: x + '-1')
         df[DATE_RECORDED] = pd.to_datetime(df[DATE_RECORDED], format='%Y-%W-%w')
 

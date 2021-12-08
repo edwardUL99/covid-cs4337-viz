@@ -19,7 +19,7 @@ import const
 from const import enable_logging, log
 
 from transformations import map_counts_to_categorical, convert_daily_to_week, filter_by_value_and_date, \
-    get_eu_variations_data, get_variations_sums, compute_variation_proportions
+    get_eu_variations_data, get_variations_sums, compute_variation_proportions, compute_monthly_cases_deaths
 
 from enum import Enum
 
@@ -143,7 +143,7 @@ def covid_cases_deaths(value, start_date, end_date, by_week):
             .x(data[date_field]) \
             .y(data[NEW_DEATHS]) \
             .type('line') \
-            .marker().color('#0074D9').proceed() \
+            .marker().color('red').proceed() \
             .layout().title(f'New Covid-19 Deaths By {date_title}').xaxis(date_title).yaxis('Deaths').proceed()
 
         deaths = graph_config_deaths.build()
@@ -159,8 +159,62 @@ def covid_cases_deaths(value, start_date, end_date, by_week):
         return du.create_text_box('Please select a country from the top-left dropdown'), ''
 
 
+@date_value_callback([Output('covid-cases-monthly', 'children'),
+                      Output('covid-deaths-monthly', 'children')], DEFAULT_INPUTS[:-1] +
+                     [Input('by_thousand_cases_deaths', 'value')])
+def covid_cases_deaths_monthly(value, start_date, end_date, by_thousand):
+    """
+    Display the cases and deaths by a monthly basis
+    :param value: the country value
+    :param start_date: the start date of the time range
+    :param end_date: the end date of the time range
+    :param by_thousand: to display by 1000 or not
+    :return: the graph output
+    """
+    start_date, end_date = convert_date_range(start_date, end_date)
+    title = 'per thousand by month' if by_thousand else '(New) by month'
+
+    if value:
+        data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value, start_date, end_date)
+        data, fields = compute_monthly_cases_deaths(data, by_thousand)
+
+        data_cases = data[data['Type'] == fields[0]]
+        data_deaths = data[data['Type'] == fields[1]]
+
+        graph_cases = du.create_plotly_figure(data_cases, 'bar', x='Month', y='Count',
+                                              title=f'Average Cases {title}')
+
+        graph_deaths = du.create_plotly_figure(data_deaths, 'bar', x='Month', y='Count',
+                                               title=f'Average Deaths {title}')
+        graph_deaths.update_traces(marker_color='red')
+
+        return [
+            html.Div(
+                dcc.Graph(
+                    id='cov-cases-month-graph',
+                    figure=graph_cases
+                )
+            ),
+            html.Div(
+                dcc.Graph(
+                    id='cov-deaths-month-graph',
+                    figure=graph_deaths
+                )
+            )
+        ]
+    else:
+        return ['', '']
+
+
 @date_value_callback([Output('vaccination-proportions', 'children')], DEFAULT_INPUTS[:-1])
 def covid_vaccination_proportions(value, start_date, end_date):
+    """
+    Displays the proportions of different vaccination types
+    :param value: the country value
+    :param start_date: the start date of the time period
+    :param end_date: the end date of the time period
+    :return:
+    """
     start_date, end_date = convert_date_range(start_date, end_date)
 
     if value:
@@ -319,7 +373,8 @@ def compare_variants(value, start_date, end_date):
                                             color=VARIANT, title='Trend of variant detections over time',
                                             labels={
                                                 DATE_RECORDED: 'Week',
-                                                NUMBER_DETECTIONS_VARIANT: 'Number of Detections'
+                                                NUMBER_DETECTIONS_VARIANT: 'Number of Detections',
+                                                VARIANT: 'Variant'
                                             })
         proportions_graph = du.create_plotly_figure(variations_proportions_data, 'pie', x=None, y=None,
                                                     values=NUMBER_DETECTIONS_VARIANT, names=VARIANT,

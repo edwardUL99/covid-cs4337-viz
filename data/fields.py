@@ -5,7 +5,7 @@ This module outlines constant variables and the names of important fields
 COUNTRY_REGION = 'Country/Region'
 CONFIRMED = 'Confirmed'
 DEATHS = 'Deaths'
-ALL_FIELDS = [COUNTRY_REGION, CONFIRMED, DEATHS]
+CSSE_FIELDS = [COUNTRY_REGION, CONFIRMED, DEATHS]
 
 # Fields in the vaccinations dataset
 TOTAL_VACCINATIONS = 'Doses'
@@ -27,7 +27,12 @@ VARIANT = 'variant'
 LINEAGE = 'lineage'
 NUMBER_DETECTIONS_VARIANT = 'number_detections_variant'
 PERCENT_VARIANT = 'percent_variant'
+COUNTRY_ISO = 'COUNTRY_ISO'
 
 VACCINE_FIELDS = [COUNTRY_REGION, DATE_RECORDED, TOTAL_VACCINATIONS,
                   FULLY_VACCINATED, PARTIALLY_VACCINATED]
 VARIANT_FIELDS = [COUNTRY_REGION, DATE_RECORDED, LINEAGE, NUMBER_DETECTIONS_VARIANT, PERCENT_VARIANT]
+
+ALL_FIELDS = list(set(CSSE_FIELDS + VACCINE_FIELDS + VARIANT_FIELDS + [NEW_CASES, NEW_DEATHS, UNVACCINATED,
+                                                                       CASES_PER_THOUSAND, DEATHS_PER_THOUSAND,
+                                                                       PERCENTAGE_VACCINATED, COUNTRY_ISO]))

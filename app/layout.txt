@@ -63,6 +63,18 @@ html.Div([
                         html.Div([
                             html.Div(id='covid-cases'),
                             html.Div(id='covid-deaths'),
+                            dbc.Row(
+                                dbc.Col(
+                                    dbc.Checklist(
+                                        id='by_thousand_cases_deaths',
+                                        options=[
+                                            {'label': 'Per 100,000', 'value': 'True'}
+                                        ]
+                                    )
+                                )
+                            ),
+                            html.Div(id='covid-cases-monthly'),
+                            html.Div(id='covid-deaths-monthly'),
                             html.Div(id='vaccination-proportions')
                         ])
                     ], className='align-items-center'
@@ -132,7 +144,7 @@ html.Div([
         ),
         html.Div(
             [
-                create_header('Visualising COVID-19 Variations within the EU', 'h4'),
+                create_header('Visualising COVID-19 Variants within the EU', 'h4'),
                 dbc.Row(
                     [
                         eu_dropdown
