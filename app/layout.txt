@@ -13,7 +13,7 @@ html.Div([
         ],
         brand='COVID-19 Visualisation',
         brand_href='#',
-        color='info',
+        color='#FFEE00',
         className='mb-5'
     ),
     dbc.Container([
