@@ -1,7 +1,8 @@
 """
 This module contains methods used for transforming dataframes for visualising them
 """
-from data.fields import DATE_RECORDED, COUNTRY_REGION, WEEK
+from data.fields import DATE_RECORDED, COUNTRY_REGION, WEEK, LINEAGE, NUMBER_DETECTIONS_VARIANT, VARIANT, \
+    PERCENT_VARIANT, VARIANT_FIELDS
 from data import pandasutils as pu
 
 
@@ -16,6 +17,12 @@ def map_counts_to_categorical(df, selection_base, columns):
     :param columns: the list of columns to extract and label
     :return: the categorically labelled dataframe
     """
+    def keep_max(df1, group_by, field):
+        maximum = df1.groupby(group_by)[field].max()
+        maximum = max(maximum)
+
+        return df1[df1[field] == maximum]
+
     dataframes = []
 
     for column in columns:
@@ -26,8 +33,10 @@ def map_counts_to_categorical(df, selection_base, columns):
         subdf['Type'] = label
 
     main_df = dataframes[0][0]
+    main_df = keep_max(main_df, selection_base + ['Type'], 'Count')
 
     for df1, _ in dataframes[1:]:
+        df1 = keep_max(df1, selection_base + ['Type'], 'Count')
         main_df = main_df.append(df1)
 
     main_df = main_df.drop_duplicates(subset=selection_base + ['Type'], keep='last')
@@ -68,3 +77,40 @@ def filter_by_value_and_date(df, value_field, date_field, value, start_date, end
     data = data[data[date_field] <= end_date]
 
     return data
+
+
+def get_eu_variations_data(df):
+    """
+    Retrieve the variations data for the EU from the loaded dataframe
+    :param df: the dataframe to process
+    :return: the processed dataframe having EU data including variations
+    """
+    df = df.dropna(subset=[LINEAGE, NUMBER_DETECTIONS_VARIANT, VARIANT, PERCENT_VARIANT])
+
+    return df
+
+
+def get_variations_sums(df):
+    """
+    Get the summation of variations detected grouped by week and variant
+    :param df: the dataframe to sum
+    :return: the processed dataframe
+    """
+    df = df.dropna(subset=VARIANT_FIELDS)
+    df = df.groupby([DATE_RECORDED, VARIANT])[NUMBER_DETECTIONS_VARIANT].sum()
+    df = df.reset_index()
+
+    return df
+
+
+def compute_variation_proportions(df):
+    """
+    Compute the proportions of the variations
+    :param df: the dataframe to compute from
+    :return: the processed dataframe
+    """
+    df = df.dropna(subset=VARIANT_FIELDS)
+    df = df.groupby([VARIANT])[NUMBER_DETECTIONS_VARIANT].mean()
+    df = df.reset_index()
+
+    return df

@@ -4,80 +4,117 @@
 # The libraries html and dcc from Dash are passed in, as well as datetime
 
 dbc.Container([
-    dbc.Row(
+    create_header('COVID-19 Visualisation Dashboard', 'H1'),
+    html.Div(
         [
-            dbc.Row([
-                dbc.Col(country_dropdown),
-                dbc.Col(dcc.DatePickerRange(
-                    id='date-picker',
-                    min_date_allowed=datetime.date(2020, 1, 22),
-                    max_date_allowed=datetime.date.today(),
-                    end_date=datetime.date.today(),
-                    display_format='D/M/YYYY'
-                )),
-                dbc.Col(dbc.Checklist(
-                    id='by-week',
-                    options=[
-                        {'label': 'Week', 'value': 'true'}
-                    ]
-                ))
-            ], className='form-group mt-5'),
-            html.Div([
-                html.Div(id='covid-cases'),
-                html.Div(id='covid-deaths'),
-                html.Div(id='vaccination-proportions')
-            ])
-        ], className='align-items-center'
+            create_header('Toggle Date Period for Graphs', 'H5'),
+            dbc.Row(
+                [
+                    dbc.Col(dcc.DatePickerRange(
+                        id='date-picker',
+                        min_date_allowed=datetime.date(2020, 1, 22),
+                        max_date_allowed=datetime.date.today(),
+                        end_date=datetime.date.today(),
+                        display_format='D/M/YYYY'
+                    )),
+                    dbc.Col(dbc.Checklist(
+                        id='by-week',
+                        options=[
+                            {'label': 'Week', 'value': 'true'}
+                        ]
+                    ))
+                ], className='form-group align-items-center'
+            )
+        ], className='card mt-5 px-2 py-2 shadow'
     ),
-    dbc.Row(
+    html.Div(
         [
-            dbc.Col(
+            create_header('General COVID-19 Metrics Per Country', 'H4'),
+            dbc.Row(
                 [
-                    country_dropdown_multiple
-                ]),
-            dbc.Col(
-                [
-                    dbc.RadioItems(
-                        id='compare-cases-options',
-                        options=[
-                            {'label': 'Compare New Cases', 'value': 1},
-                            {'label': 'Compare Confirmed Cases', 'value': 2},
-                            {'label': 'Compare New Deaths', 'value': 3},
-                            {'label': 'Compare Deaths', 'value': 4}
-                        ],
-                        value=1,
-                    )
-                ]
+                    dbc.Row([
+                        dbc.Col(country_dropdown)
+                    ], className='form-group mt-5'),
+                    html.Div([
+                        html.Div(id='covid-cases'),
+                        html.Div(id='covid-deaths'),
+                        html.Div(id='vaccination-proportions')
+                    ])
+                ], className='align-items-center'
             ),
-            dbc.Col(
+        ], className='card mt-5 px-2 py-2 shadow'
+    ),
+    html.Div(
+        [
+            create_header('Comparison of COVID-19 data between multiple countries', 'H4'),
+            dbc.Row(
                 [
-                    dbc.Checklist(
-                        id='by_thousand',
-                        options=[
-                            {'label': 'Per 100,000', 'value': 'True'}
+                    dbc.Col(
+                        [
+                            country_dropdown_multiple
+                        ]),
+                    dbc.Col(
+                        [
+                            dbc.RadioItems(
+                                id='compare-cases-options',
+                                options=[
+                                    {'label': 'Compare New Cases', 'value': 1},
+                                    {'label': 'Compare Confirmed Cases', 'value': 2},
+                                    {'label': 'Compare New Deaths', 'value': 3},
+                                    {'label': 'Compare Deaths', 'value': 4}
+                                ],
+                                value=1,
+                            )
+                        ]
+                    ),
+                    dbc.Col(
+                        [
+                            dbc.Checklist(
+                                id='by_thousand',
+                                options=[
+                                    {'label': 'Per 100,000', 'value': 'True'}
+                                ]
+                            )
+                        ]
+                    )
+                ], className='align-items-center'
+            ),
+            dbc.Row(
+                [
+                    html.Div(id='compare-covid')
+                ], className='align-items-center'
+            ),
+        ], className='card mt-5 px-2 py-2 shadow'
+    ),
+    html.Div(
+        [
+            create_header('Comparison of COVID-19 Vaccinations between multiple countries', 'H4'),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            country_dropdown_multiple1
                         ]
                     )
                 ]
-            )
-        ], className='align-items-center'
-    ),
-    dbc.Row(
-        [
-            html.Div(id='compare-covid')
-        ], className='align-items-center'
-    ),
-    dbc.Row(
-        [
-            dbc.Col(
+            ),
+            dbc.Row(
                 [
-                    country_dropdown_multiple1
+                    html.Div(id='compare-vaccinations')
                 ]
-            )
-        ]
+            ),
+        ], className='card mt-5 px-2 py-2 shadow'
     ),
-    dbc.Row(
+    html.Div(
         [
-            html.Div(id='compare-vaccinations')
-        ]
+            create_header('Visualising COVID-19 Variations within the EU', 'h4'),
+            dbc.Row(
+                [
+                    eu_dropdown
+                ]
+            ),
+            dbc.Row(html.Div(id='compare-variants')),
+            dbc.Row(html.Div(id='variant-proportions'))
+        ], className='card mt-5 px-2 py-2 shadow'
     )
 ])

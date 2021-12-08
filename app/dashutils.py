@@ -333,6 +333,26 @@ def create_graph(gc: GraphConfig):
     """
     return gc.build()
 
+_headers = {
+    'H1': html.H1,
+    'H2': html.H2,
+    'H3': html.H3,
+    'H4': html.H4,
+    'H5': html.H5,
+    'H6': html.H6
+}
+
+def create_header(header_text, size):
+    header = _headers.get(size.upper(), html.H1)
+
+    return dbc.Row(
+        header(header_text),
+        className='text-center'
+    )
+
+
+_allowed_functions = [create_header]
+
 
 def _clean_variables(variables: dict):
     """
@@ -345,7 +365,7 @@ def _clean_variables(variables: dict):
     dangerous_modules = [os, shutil, pathlib]
     # if any value is a string, don't evaluate it and also don't allow callable values
     variables = {k: v for k, v in variables.items() if k not in dangerous_variables and not isinstance(v, str)
-                 and not callable(v) and v not in dangerous_modules}
+                 and (not callable(v) or v in _allowed_functions) and v not in dangerous_modules}
 
     return variables
 
@@ -364,7 +384,8 @@ def get_layout(layout_file, variables: dict = None):
         'html': html,
         'dcc': dcc,
         'dbc': dbc,
-        'datetime': datetime
+        'datetime': datetime,
+        'create_header': create_header
     }
 
     if variables is not None:

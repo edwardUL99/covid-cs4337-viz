@@ -11,8 +11,6 @@ from dash import html
 from dash import dcc
 from dash.dependencies import Input, Output
 
-from plotly.subplots import make_subplots
-
 import dashutils as du
 from data import pandasutils as pu
 from data.fields import *
@@ -20,7 +18,8 @@ from data.fields import *
 import const
 from const import enable_logging, log
 
-from transformations import map_counts_to_categorical, convert_daily_to_week, filter_by_value_and_date
+from transformations import map_counts_to_categorical, convert_daily_to_week, filter_by_value_and_date, \
+    get_eu_variations_data, get_variations_sums, compute_variation_proportions
 
 from enum import Enum
 
@@ -47,20 +46,22 @@ def get_data():
         exit(1)
     else:
         log(f'Loading data from {DATA_FILE} into a DataFrame')
-        df = pu.from_csv(DATA_FILE, convert_datetime=DATE_RECORDED)
+        df = pu.from_csv(DATA_FILE, convert_datetime=DATE_RECORDED, low_memory=False)
 
         return df
 
 
 log('Starting')
 df = get_data()
-# vaccine_df = get_vaccine_data(df)
+eu_variants_df = get_eu_variations_data(df)
 
 country_dropdown = du.ColumnDropdown(df, COUNTRY_REGION, className='w-50')
 country_dropdown_multiple = du.ColumnDropdown(df, COUNTRY_REGION, className='w-50',
                                               id='country_dropdown_multiple', multi=True)
 country_dropdown_multiple1 = du.ColumnDropdown(df, COUNTRY_REGION, className='w-50',
                                                id='country_dropdown_multiple1', multi=True)
+eu_dropdown = du.ColumnDropdown(eu_variants_df, COUNTRY_REGION, className='w-50',
+                                id='eu_dropdown')
 
 COUNTRY_SINGLE_INPUT = Input(country_dropdown.id, 'value')
 START_DATE_INPUT = Input('date-picker', 'start_date')
@@ -277,10 +278,54 @@ def compare_vaccinations(values, start_date, end_date):
         return [html.Div(dcc.Graph())]
 
 
+@date_value_callback([Output('compare-variants', 'children'),
+                      Output('variant-proportions', 'children')], [Input(eu_dropdown.id, 'value'),
+                                                                    *DEFAULT_INPUTS[1:-1]])
+def compare_variants(value, start_date, end_date):
+    """
+    Displays the proportions of variations in the
+    :param value: the value of the country name
+    :param start_date: the start date of the data range
+    :param end_date: the end date of the data range
+    :return: the output graph
+    """
+    start_date, end_date = convert_date_range(start_date, end_date)
+
+    if value:
+        data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value, start_date, end_date)
+        variations_sum_data = get_variations_sums(data.copy())
+        variations_proportions_data = compute_variation_proportions(data.copy())
+
+        sum_graph = du.create_plotly_figure(variations_sum_data, 'line', x=DATE_RECORDED, y=NUMBER_DETECTIONS_VARIANT,
+                                            color=VARIANT)
+        proportions_graph = du.create_plotly_figure(variations_proportions_data, 'pie', x=None, y=None,
+                                                    values=NUMBER_DETECTIONS_VARIANT, names=VARIANT)
+
+        return [
+            html.Div(
+                dcc.Graph(
+                    id='compare-variants-graph',
+                    figure=sum_graph
+                )
+            ),
+            html.Div(
+                dcc.Graph(
+                    id='variant-proportions-graph',
+                    figure=proportions_graph
+                )
+            )
+        ]
+    else:
+        return [html.Div(
+            dcc.Graph()
+        )], ['']
+
+
 app.layout = du.get_layout(const.LAYOUT_FILE, {
     'country_dropdown': country_dropdown,
     'country_dropdown_multiple': country_dropdown_multiple,
-    'country_dropdown_multiple1': country_dropdown_multiple1
+    'country_dropdown_multiple1': country_dropdown_multiple1,
+    'eu_dropdown': eu_dropdown
 })
 
 
