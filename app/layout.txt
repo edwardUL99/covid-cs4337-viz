@@ -26,7 +26,7 @@ html.Div([
             ]
         ),
         color='#FFEE00',
-        className='mb-5'
+        className='mb-5 sticky-top'
     ),
     dbc.Container([
         create_header('COVID-19 Visualisation Dashboard', 'H1'),
@@ -145,11 +145,7 @@ html.Div([
     ]),
     html.Footer(
         [
-            dbc.Row(
-                'Navbar Covid-19 icon by Icons8',
-                className='text-end',
-                style={'color': 'lightgrey'}
-            )
-        ]
+            'Navbar Covid-19 icon by Icons8',
+        ], className='text-end', style={'color': 'lightgrey'}
     )
 ])

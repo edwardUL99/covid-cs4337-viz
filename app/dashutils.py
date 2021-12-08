@@ -272,17 +272,20 @@ _graph_functions_go = {
 
 
 def _construct_figure(df, figure_func, x, y, graph_object, **kwargs):
-    if graph_object:
-        return figure_func(x=df[x], y=df[y], **kwargs)
-    else:
-        if x is not None and y is not None:
-            return figure_func(df, x=x, y=y, **kwargs)
+    try:
+        if graph_object:
+            return figure_func(x=df[x], y=df[y], **kwargs)
         else:
-            return figure_func(df, **kwargs)
+            if x is not None and y is not None:
+                return figure_func(df, x=x, y=y, **kwargs)
+            else:
+                return figure_func(df, **kwargs)
+    except ValueError as e:
+        # sometimes plotly is buggy and throws a random error, so try and construct the graph again
+        return _construct_figure(df, figure_func, x, y, graph_object, **kwargs)
 
 
-def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=None, yaxis=None, graph_object=False,
-                         **kwargs):
+def create_plotly_figure(df, figure_type, x, y, title=None, color=None, graph_object=False, **kwargs):
     """
     Create the plotly figure from the provided arguments
     :param df: the dataframe to plot
@@ -291,8 +294,6 @@ def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=No
     :param y: the name of the column to use for the y axis
     :param title: the title of the graph
     :param color: the color to differentiate multiple aspects of the data
-    :param xaxis: the name of the x axis
-    :param yaxis: the name of the y axis
     :param graph_object: true if to use graph_objects instead of plotly.express
     :param kwargs: any extra parameters to pass into plotly
     :return: the created plotly figure
@@ -312,18 +313,10 @@ def create_plotly_figure(df, figure_type, x, y, title=None, color=None, xaxis=No
 
     new_kwargs = {**extra_args, **kwargs, 'graph_object': graph_object}
 
-    fig = _construct_figure(df, graph_funcs[figure_type],  **new_kwargs)
+    fig = _construct_figure(df, graph_funcs[figure_type], title=title,  **new_kwargs)
+    px.scatter()
 
     if hasattr(fig, 'update_layout'):
-        if title:
-            fig.update_layout(title_text=title)
-
-        if xaxis:
-            fig.update_layout(xaxis={'title': xaxis})
-
-        if yaxis:
-            fig.update_layout(yaxis={'title': yaxis})
-
         fig.update_layout(paper_bgcolor='white', plot_bgcolor='white')
         fig.update_xaxes(gridcolor='#eee')
         fig.update_yaxes(gridcolor='#eee')

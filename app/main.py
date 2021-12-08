@@ -27,7 +27,8 @@ enable_logging(__name__ == '__main__')
 
 app = dash.Dash(__name__,
                 external_stylesheets=['https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css'],
-                title='COVID-19 Visualisation Dashboard')
+                title='COVID-19 Visualisation Dashboard',
+                assets_folder=os.path.join(const.FILE_DIR, 'app', 'assets'))
 
 parser = argparse.ArgumentParser(description='The server for providing interactive COVID-19 visualisations')
 parser.add_argument('-f', '--file', default=const.DATA_FILE, required=False, help='The path to the data.csv file'
@@ -164,7 +165,11 @@ def covid_vaccination_proportions(value, start_date, end_date):
 
     if value:
         data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value, start_date, end_date)
-        data = map_counts_to_categorical(data, [COUNTRY_REGION], [FULLY_VACCINATED, PARTIALLY_VACCINATED, UNVACCINATED])
+        data = map_counts_to_categorical(data, [COUNTRY_REGION], [FULLY_VACCINATED, PARTIALLY_VACCINATED, UNVACCINATED],
+                                         label_mappings={
+                                             FULLY_VACCINATED: 'Fully Vaccinated',
+                                             PARTIALLY_VACCINATED: 'Partially Vaccinated'
+                                         })
 
         graph = du.create_plotly_figure(data, 'pie', x=None, y=None, values='Count', names='Type',
                                         title='Vaccination Proportions')
@@ -247,8 +252,10 @@ def compare_country_cases(values, compare_cases_options, by_thousand, start_date
 
         graph = du.create_plotly_figure(data, 'line', x=date_field, y=column, color=COUNTRY_REGION,
                                         title=title,
-                                        xaxis=date_title,
-                                        yaxis=yaxis)
+                                        labels={
+                                            date_field: date_title,
+                                            column: yaxis
+                                        })
 
         return [html.Div(dcc.Graph(id='line-chart-compare', figure=graph))]
     else:
@@ -280,8 +287,10 @@ def compare_vaccinations(values, start_date, end_date):
 
         graph = du.create_plotly_figure(data, 'line', x=date_field, y=PERCENTAGE_VACCINATED, color=COUNTRY_REGION,
                                         title=title,
-                                        xaxis=date_title,
-                                        yaxis='Percentage Vaccinated')
+                                        labels={
+                                            date_field: date_title,
+                                            PERCENTAGE_VACCINATED: 'Percentage Vaccinated'
+                                        })
 
         return [html.Div(dcc.Graph(id='cases-vaccines-compare', figure=graph))]
     else:
@@ -307,9 +316,18 @@ def compare_variants(value, start_date, end_date):
         variations_proportions_data = compute_variation_proportions(data.copy())
 
         sum_graph = du.create_plotly_figure(variations_sum_data, 'line', x=DATE_RECORDED, y=NUMBER_DETECTIONS_VARIANT,
-                                            color=VARIANT)
+                                            color=VARIANT, title='Trend of variant detections over time',
+                                            labels={
+                                                DATE_RECORDED: 'Week',
+                                                NUMBER_DETECTIONS_VARIANT: 'Number of Detections'
+                                            })
         proportions_graph = du.create_plotly_figure(variations_proportions_data, 'pie', x=None, y=None,
-                                                    values=NUMBER_DETECTIONS_VARIANT, names=VARIANT)
+                                                    values=NUMBER_DETECTIONS_VARIANT, names=VARIANT,
+                                                    title='Proportion of variants detected',
+                                                    labels={
+                                                        VARIANT: 'Variant',
+                                                        NUMBER_DETECTIONS_VARIANT: 'Number of Detections'
+                                                    })
 
         return [
             html.Div(

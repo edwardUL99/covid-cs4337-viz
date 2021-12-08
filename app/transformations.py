@@ -6,7 +6,7 @@ from data.fields import DATE_RECORDED, COUNTRY_REGION, WEEK, LINEAGE, NUMBER_DET
 from data import pandasutils as pu
 
 
-def map_counts_to_categorical(df, selection_base, columns):
+def map_counts_to_categorical(df, selection_base, columns, label_mappings=None):
     """
     This method maps counts of the columns in the columns list to a categorical label
     For example, you can use it to map number of cases to a label NewCases, count of deaths
@@ -15,6 +15,7 @@ def map_counts_to_categorical(df, selection_base, columns):
     :param df: the dataframe to transform
     :param selection_base: the list of columns to act as a base for selecting the fields
     :param columns: the list of columns to extract and label
+    :param label_mappings: an optional map to map the field name to a more friendly label name
     :return: the categorically labelled dataframe
     """
     def keep_max(df1, group_by, field):
@@ -23,6 +24,9 @@ def map_counts_to_categorical(df, selection_base, columns):
 
         return df1[df1[field] == maximum]
 
+    if label_mappings is None:
+        label_mappings = {}
+
     dataframes = []
 
     for column in columns:
@@ -30,7 +34,7 @@ def map_counts_to_categorical(df, selection_base, columns):
 
     for subdf, label in dataframes:
         subdf.rename(columns={label: 'Count'}, inplace=True)
-        subdf['Type'] = label
+        subdf['Type'] = label_mappings.get(label, label)
 
     main_df = dataframes[0][0]
     main_df = keep_max(main_df, selection_base + ['Type'], 'Count')
@@ -110,7 +114,7 @@ def compute_variation_proportions(df):
     :return: the processed dataframe
     """
     df = df.dropna(subset=VARIANT_FIELDS)
-    df = df.groupby([VARIANT])[NUMBER_DETECTIONS_VARIANT].mean()
+    df = df.groupby([VARIANT])[NUMBER_DETECTIONS_VARIANT].sum()
     df = df.reset_index()
 
     return df
