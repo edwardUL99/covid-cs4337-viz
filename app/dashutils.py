@@ -333,6 +333,7 @@ def create_graph(gc: GraphConfig):
     """
     return gc.build()
 
+
 _headers = {
     'H1': html.H1,
     'H2': html.H2,
@@ -341,6 +342,7 @@ _headers = {
     'H5': html.H5,
     'H6': html.H6
 }
+
 
 def create_header(header_text, size):
     header = _headers.get(size.upper(), html.H1)
@@ -351,7 +353,13 @@ def create_header(header_text, size):
     )
 
 
-_allowed_functions = [create_header]
+def create_navigation_item(text, href):
+    return dbc.NavItem(
+        dbc.NavLink(text, href=href, external_link=True)
+    )
+
+
+_allowed_functions = [create_header, create_navigation_item]
 
 
 def _clean_variables(variables: dict):
@@ -385,7 +393,8 @@ def get_layout(layout_file, variables: dict = None):
         'dcc': dcc,
         'dbc': dbc,
         'datetime': datetime,
-        'create_header': create_header
+        'create_header': create_header,
+        'create_navigation_item': create_navigation_item
     }
 
     if variables is not None:
