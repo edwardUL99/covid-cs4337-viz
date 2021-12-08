@@ -57,13 +57,16 @@ log('Starting')
 df = get_data()
 eu_variants_df = get_eu_variations_data(df)
 
-country_dropdown = du.ColumnDropdown(df, COUNTRY_REGION, className='w-50')
-country_dropdown_multiple = du.ColumnDropdown(df, COUNTRY_REGION, className='w-50',
-                                              id='country_dropdown_multiple', multi=True)
-country_dropdown_multiple1 = du.ColumnDropdown(df, COUNTRY_REGION, className='w-50',
-                                               id='country_dropdown_multiple1', multi=True)
-eu_dropdown = du.ColumnDropdown(eu_variants_df, COUNTRY_REGION, className='w-50',
-                                id='eu_dropdown')
+_default_country = 'Ireland'
+_dropdown_style = 'w-50'
+
+country_dropdown = du.ColumnDropdown(df, COUNTRY_REGION, value=_default_country, className=_dropdown_style)
+country_dropdown_multiple = du.ColumnDropdown(df, COUNTRY_REGION, id='country_dropdown_multiple', multi=True,
+                                              value=[_default_country], className=_dropdown_style)
+country_dropdown_multiple1 = du.ColumnDropdown(df, COUNTRY_REGION, id='country_dropdown_multiple1',
+                                               multi=True, value=[_default_country], className=_dropdown_style)
+eu_dropdown = du.ColumnDropdown(eu_variants_df, COUNTRY_REGION, id='eu_dropdown',
+                                value=_default_country, className=_dropdown_style)
 
 COUNTRY_SINGLE_INPUT = Input(country_dropdown.id, 'value')
 START_DATE_INPUT = Input('date-picker', 'start_date')
@@ -152,9 +155,7 @@ def covid_cases_deaths(value, start_date, end_date, by_week):
                       figure=deaths)
         )]
     else:
-        return html.Div(
-            dcc.Graph()
-        ), ''
+        return du.create_text_box('Please select a country from the top-left dropdown'), ''
 
 
 @date_value_callback([Output('vaccination-proportions', 'children')], DEFAULT_INPUTS[:-1])
@@ -251,12 +252,19 @@ def compare_country_cases(values, compare_cases_options, by_thousand, start_date
 
         return [html.Div(dcc.Graph(id='line-chart-compare', figure=graph))]
     else:
-        return [html.Div(dcc.Graph())]
+        return [du.create_text_box('Please select at least one country from the top-left dropdown')]
 
 
 @date_value_callback([Output('compare-vaccinations', 'children')], [Input(country_dropdown_multiple1.id, 'value'),
                                                                     *DEFAULT_INPUTS[1:-1]])
 def compare_vaccinations(values, start_date, end_date):
+    """
+    Compares the vaccination percentage of multiple countries
+    :param values: the countries to compare
+    :param start_date: the start of the date range
+    :param end_date: the end of the date range
+    :return:
+    """
     date_field = WEEK
     date_title = 'Week'
     title = 'Percentage of people vaccinated by week'
@@ -277,7 +285,7 @@ def compare_vaccinations(values, start_date, end_date):
 
         return [html.Div(dcc.Graph(id='cases-vaccines-compare', figure=graph))]
     else:
-        return [html.Div(dcc.Graph())]
+        return [du.create_text_box('Please select at least one country from the top-left dropdown')]
 
 
 @date_value_callback([Output('compare-variants', 'children'),
@@ -318,9 +326,7 @@ def compare_variants(value, start_date, end_date):
             )
         ]
     else:
-        return [html.Div(
-            dcc.Graph()
-        )], ['']
+        return [du.create_text_box('Please select a country from the top-left dropdown'), '']
 
 
 app.layout = du.get_layout(const.LAYOUT_FILE, {

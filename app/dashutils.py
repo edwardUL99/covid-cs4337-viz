@@ -1,10 +1,16 @@
 """
 This class provides utility functions and classes for this project
 """
+import os.path
+
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
+
+import base64
+
+import const
 
 
 class ColumnDropdown(dcc.Dropdown):
@@ -345,6 +351,13 @@ _headers = {
 
 
 def create_header(header_text, size):
+    """
+    Creates a header surrounded by a row and with text centered. Size is 'H1' - 'H6'
+    Exposed to the get_layout function by default
+    :param header_text: the text for the header
+    :param size: the header size, ranging from H1 to H6
+    :return: the created header row
+    """
     header = _headers.get(size.upper(), html.H1)
 
     return dbc.Row(
@@ -354,12 +367,39 @@ def create_header(header_text, size):
 
 
 def create_navigation_item(text, href):
+    """
+    Creates a dash bootstrap NavItem component with a navlink object pointing to the provided href and text.
+    Exposed to the get_layout function by default
+    :param text: the text to display on the link
+    :param href: the reference for the link
+    :return: the created navigation item
+    """
     return dbc.NavItem(
         dbc.NavLink(text, href=href, external_link=True)
     )
 
 
-_allowed_functions = [create_header, create_navigation_item]
+def create_text_box(text, enclose_in_card=False):
+    """
+    Creates a box of vertically and horizontally centered text.
+    Exposed to get_layout by default
+    :param text: the text to display
+    :param enclose_in_card: if true, enclose in a div with class card
+    :return: the created element
+    """
+    class_name = 'd-flex align-items-center justify-content-center'
+
+    if enclose_in_card:
+        class_name += ' card mt-2 shadow'
+
+    return html.Div(
+        text,
+        className=class_name,
+        style={'height': '200px'}
+    )
+
+
+_allowed_functions = [create_header, create_navigation_item, create_text_box]
 
 
 def _clean_variables(variables: dict):
@@ -372,10 +412,15 @@ def _clean_variables(variables: dict):
     import os, shutil, pathlib
     dangerous_modules = [os, shutil, pathlib]
     # if any value is a string, don't evaluate it and also don't allow callable values
-    variables = {k: v for k, v in variables.items() if k not in dangerous_variables and not isinstance(v, str)
+    variables = {k: v for k, v in variables.items() if k not in dangerous_variables
                  and (not callable(v) or v in _allowed_functions) and v not in dangerous_modules}
 
     return variables
+
+
+def _get_covid_image():
+    with open(os.path.join(const.FILE_DIR, 'app', 'assets', 'covid.png'), 'rb') as img:
+        return f'data:image/png;base64,{base64.b64encode(img.read()).decode()}'
 
 
 def get_layout(layout_file, variables: dict = None):
@@ -394,7 +439,8 @@ def get_layout(layout_file, variables: dict = None):
         'dbc': dbc,
         'datetime': datetime,
         'create_header': create_header,
-        'create_navigation_item': create_navigation_item
+        'create_navigation_item': create_navigation_item,
+        'covid_nav_logo': _get_covid_image()
     }
 
     if variables is not None:

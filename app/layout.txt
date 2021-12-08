@@ -4,15 +4,27 @@
 # The libraries html and dcc from Dash are passed in, as well as datetime
 
 html.Div([
-    dbc.NavbarSimple(
-        children=[
-            create_navigation_item('General', href='#general'),
-            create_navigation_item('Country Comparison', href='#country-comparison'),
-            create_navigation_item('Vaccination Comparison', href='#country-vaccination-comparison'),
-            create_navigation_item('Variants', href='#variants')
-        ],
-        brand='COVID-19 Visualisation',
-        brand_href='#',
+    dbc.Navbar(
+        dbc.Container(
+            [
+                html.A(
+                    dbc.Row(
+                        [
+                            dbc.Col(html.Img(src=covid_nav_logo, height='50px')),
+                            dbc.Col(dbc.NavbarBrand('COVID-19 Visualisation', className='ms-2')),
+                        ],
+                        align='center',
+                        className='g-0',
+                    ),
+                    href="#",
+                    style={"textDecoration": "none"},
+                ),
+                create_navigation_item('General', href='#general'),
+                create_navigation_item('Country Comparison', href='#country-comparison'),
+                create_navigation_item('Vaccination Comparison', href='#country-vaccination-comparison'),
+                create_navigation_item('Variants', href='#variants')
+            ]
+        ),
         color='#FFEE00',
         className='mb-5'
     ),
@@ -130,5 +142,14 @@ html.Div([
                 dbc.Row(html.Div(id='variant-proportions'))
             ], className='card mt-5 px-2 py-2 shadow', id='variants'
         )
-    ])
+    ]),
+    html.Footer(
+        [
+            dbc.Row(
+                'Navbar Covid-19 icon by Icons8',
+                className='text-end',
+                style={'color': 'lightgrey'}
+            )
+        ]
+    )
 ])
