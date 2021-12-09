@@ -8,10 +8,9 @@ The data is thanks to the following sources:
 
 The following datasets are "custom" datasets which are merged into the main one to provide additional information for
 visualisations
-- https://github.com/govex/COVID-19/ - provides vaccination information
 - https://population.un.org/wpp/Download/Files/1_Indicators%20(Standard)/CSV_FILES/WPP2019_TotalPopulationBySex.csv -
 provides population data (estimated)
-- https://opendata.ecdc.europa.eu/covid19/virusvariant/csv/data.csv - Provides variant data for the EU
+- https://github.com/owid/covid-19-data/ - Provides vaccination and variant data
 
 ## Requirements
 The following are required to run the application components:
@@ -22,7 +21,6 @@ The following are required to run the application components:
 - Dash Bootstrap Components
 - Pandas
 - Plotly
-- PyYAML
 
 To quickly install the dependencies, in a virtual environment or the main environment, from the base of the project, run
 the following command:
