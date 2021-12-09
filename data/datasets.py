@@ -3,24 +3,20 @@ This module contains functionality for defining additional datasets
 """
 import pandas as pd
 import pandasutils as pu
-import yaml
 
 from fields import *
 from const import log
 
 
-VACCINATIONS_URL = 'https://raw.githubusercontent.com/govex/COVID-19/master/data_tables/vaccine_data/global_data/' \
-                   'time_series_covid19_vaccine_global.csv'
+VACCINATIONS_URL = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/' \
+                   'vaccinations.csv'
 GITHUB_URL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/' \
              'csse_covid_19_time_series/'
 POPULATIONS_URL = 'https://population.un.org/wpp/Download/Files/1_Indicators%20(Standard)/CSV_FILES/' \
                   'WPP2019_TotalPopulationBySex.csv'
-EU_VARIANT_DATA = 'https://opendata.ecdc.europa.eu/covid19/virusvariant/csv/data.csv'
-
-
-with open('variants.yaml') as f:
-    VARIANT_NAMES: dict = yaml.safe_load(f)
-
+VARIANT_DATA = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/variants/covid-variants.csv'
+TESTING_DATA = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/testing/' \
+               'covid-testing-all-observations.csv'
 
 custom_datasets = []
 
@@ -97,21 +93,18 @@ def _get_vaccinations_dataset():
     log(f'Loading vaccinations data from {VACCINATIONS_URL}')
 
     def processor(df):
-        df.rename({'Country_Region': COUNTRY_REGION, 'Date': DATE_RECORDED, 'Doses_admin': TOTAL_VACCINATIONS},
+        df.rename({'location': COUNTRY_REGION, 'date': DATE_RECORDED, 'total_vaccinations': TOTAL_VACCINATIONS},
                   inplace=True, axis=1)
-        df.field_convert(DATE_RECORDED, pd.to_datetime)
+        df.field_convert(DATE_RECORDED, pd.to_datetime, format='%Y-%m-%d')
+        df[DATE_RECORDED] = df[DATE_RECORDED].dt.floor('d')
         df = df.group_aggregate([DATE_RECORDED, COUNTRY_REGION])
+        df[PARTIALLY_VACCINATED] = df['people_vaccinated'] - df['people_fully_vaccinated']
+        df[COUNTRY_REGION] = df[COUNTRY_REGION].apply(lambda x: 'US' if x == 'United States' else x)
         df = df[VACCINE_FIELDS]
 
         return df
 
-    def compute_daily_vaccines(df):
-        df.subtract_previous(TOTAL_VACCINATIONS, COUNTRY_REGION, DAILY_VACCINATIONS)
-
-        return df
-
-    return CustomDataset(path_or_url=VACCINATIONS_URL, on=[COUNTRY_REGION, DATE_RECORDED], pre_processor=processor,
-                         post_processor=compute_daily_vaccines)
+    return CustomDataset(path_or_url=VACCINATIONS_URL, on=[COUNTRY_REGION, DATE_RECORDED], pre_processor=processor)
 
 
 @Producer
@@ -149,32 +142,72 @@ def _get_populations_dataset():
 
 
 @Producer
-def _get_eu_variant_dataset():
+def _get_variant_dataset():
     """
-    Get the data for the Covid-19 variants in the EU.
-    :return: custom dataset for EU variants
+    Get the data for the Covid-19 variants.
+    :return: custom dataset for variants
     """
-    log(f'Loading EU Covid-19 Variants data from {EU_VARIANT_DATA}')
+    log(f'Loading Covid-19 Variants data from {VARIANT_DATA}')
 
     def processor(df):
-        df = df.rename(columns={'country': COUNTRY_REGION, 'year_week': DATE_RECORDED, VARIANT: LINEAGE})
+        df = df.rename(columns={'location': COUNTRY_REGION, 'date': DATE_RECORDED,
+                                'num_sequences': NUMBER_DETECTIONS_VARIANT, 'perc_sequences': PERCENT_VARIANT})
         df = df[VARIANT_FIELDS].copy()
-        df[DATE_RECORDED] = df[DATE_RECORDED].apply(lambda x: x + '-1')
-        df[DATE_RECORDED] = pd.to_datetime(df[DATE_RECORDED], format='%Y-%W-%w')
+        df[DATE_RECORDED] = pd.to_datetime(df[DATE_RECORDED], format='%Y-%m-%d')
+        df[DATE_RECORDED] = df[DATE_RECORDED].dt.floor('d')
+        df[COUNTRY_REGION] = df[COUNTRY_REGION].apply(lambda x: 'US' if x == 'United States' else x)
 
         def variant_mapper(variant):
-            return VARIANT_NAMES.get(variant, 'Unknown')
+            if variant.startswith('B') or variant.startswith('S') or variant == 'non_who':
+                return 'Unknown'
+            else:
+                return variant
 
-        df[VARIANT] = df[LINEAGE].apply(variant_mapper)
+        df[VARIANT] = df[VARIANT].apply(variant_mapper)
 
         return df
 
-    return CustomDataset(path_or_url=EU_VARIANT_DATA, on=[COUNTRY_REGION, DATE_RECORDED], pre_processor=processor)
+    return CustomDataset(path_or_url=VARIANT_DATA, on=[COUNTRY_REGION, DATE_RECORDED], pre_processor=processor)
 
 
-def get_datasets() -> list[CustomDataset]:
+@Producer
+def _get_testing_dataset():
     """
-    Return the defined datasets in this module
-    :return: list of defined datasets
+    Retrieves the dataset for testing
+    :return: the testing dataset
     """
-    return [dataset() for dataset in custom_datasets]
+    log(f'Loading Covid-19 testing data from {TESTING_DATA}')
+
+    def processor(df):
+        df = df.rename(columns={'Entity': COUNTRY_REGION, 'Date': DATE_RECORDED,
+                                'Daily change in cumulative total': DAILY_TESTS,
+                                'Cumulative total': TOTAL_TESTS,
+                                'Short-term positive rate': POSITIVE_RATE,
+                                'Daily change in cumulative total per thousand': TESTS_PER_THOUSAND})
+        df[DATE_RECORDED] = pd.to_datetime(df[DATE_RECORDED], format='%Y-%m-%d')
+        df[DATE_RECORDED] = df[DATE_RECORDED].dt.floor('d')
+
+        def country_mapper(country):
+            country = country[:country.index('-')].strip()
+            return 'US' if country == 'United States' else country
+
+        df[COUNTRY_REGION] = df[COUNTRY_REGION].apply(country_mapper)
+        df = df[TESTING_FIELDS].copy()
+
+        return df
+
+    return CustomDataset(path_or_url=TESTING_DATA, on=[COUNTRY_REGION, DATE_RECORDED], pre_processor=processor)
+
+
+def merge(df):
+    """
+    Merge the datasets defined by @Producer into the provided dataframe
+    :param df: the dataframe to merge into
+    :return: the fully merged dataframe
+    """
+    for custom in custom_datasets:
+        dataset = custom()
+        log(f'Merging dataset from {dataset.path_or_url}...')
+        df = dataset.merge(df)
+
+    return df

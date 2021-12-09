@@ -18,8 +18,9 @@ from data.fields import *
 import const
 from const import enable_logging, log
 
-from transformations import map_counts_to_categorical, convert_daily_to_week, filter_by_value_and_date, \
-    get_eu_variations_data, get_variations_sums, compute_variation_proportions, compute_monthly_cases_deaths
+from transformations import convert_daily_to_week, filter_by_value_and_date, \
+    get_variants_data, get_variants_sums, compute_variant_proportions, compute_monthly_cases_deaths, \
+    compute_testing_metrics, get_vaccination_percentage_and_boosters
 
 from enum import Enum
 
@@ -56,18 +57,21 @@ def get_data():
 
 log('Starting')
 df = get_data()
-eu_variants_df = get_eu_variations_data(df)
+variants_df = get_variants_data(df)
 
 _default_country = 'Ireland'
 _dropdown_style = 'w-50'
 
 country_dropdown = du.ColumnDropdown(df, COUNTRY_REGION, value=_default_country, className=_dropdown_style)
+country_dropdown1 = du.ColumnDropdown(df, COUNTRY_REGION, value=_default_country, className=_dropdown_style,
+                                      id='country_dropdown1')
 country_dropdown_multiple = du.ColumnDropdown(df, COUNTRY_REGION, id='country_dropdown_multiple', multi=True,
                                               value=[_default_country, 'United Kingdom'], className=_dropdown_style)
 country_dropdown_multiple1 = du.ColumnDropdown(df, COUNTRY_REGION, id='country_dropdown_multiple1',
-                                               multi=True, value=[_default_country, 'United Kingdom'], className=_dropdown_style)
-eu_dropdown = du.ColumnDropdown(eu_variants_df, COUNTRY_REGION, id='eu_dropdown',
-                                value=_default_country, className=_dropdown_style)
+                                               multi=True, value=[_default_country, 'United Kingdom'],
+                                               className=_dropdown_style)
+variants_dropdown = du.ColumnDropdown(variants_df, COUNTRY_REGION, id='eu_dropdown',
+                                      value=_default_country, className=_dropdown_style)
 
 COUNTRY_SINGLE_INPUT = Input(country_dropdown.id, 'value')
 START_DATE_INPUT = Input('date-picker', 'start_date')
@@ -206,38 +210,6 @@ def covid_cases_deaths_monthly(value, start_date, end_date, by_thousand):
         return ['', '']
 
 
-@date_value_callback([Output('vaccination-proportions', 'children')], DEFAULT_INPUTS[:-1])
-def covid_vaccination_proportions(value, start_date, end_date):
-    """
-    Displays the proportions of different vaccination types
-    :param value: the country value
-    :param start_date: the start date of the time period
-    :param end_date: the end date of the time period
-    :return:
-    """
-    start_date, end_date = convert_date_range(start_date, end_date)
-
-    if value:
-        data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value, start_date, end_date)
-        data = map_counts_to_categorical(data, [COUNTRY_REGION], [FULLY_VACCINATED, PARTIALLY_VACCINATED, UNVACCINATED],
-                                         label_mappings={
-                                             FULLY_VACCINATED: 'Fully Vaccinated',
-                                             PARTIALLY_VACCINATED: 'Partially Vaccinated'
-                                         })
-
-        graph = du.create_plotly_figure(data, 'pie', x=None, y=None, values='Count', names='Type',
-                                        title='Vaccination Proportions')
-
-        return [html.Div(
-            dcc.Graph(
-                id='vaccination-proportions',
-                figure=graph
-            )
-        )]
-    else:
-        return ['']
-
-
 class _CompareCasesOptions(Enum):
     NEW_CASES = 1
     CONFIRMED_CASES = 2
@@ -316,8 +288,9 @@ def compare_country_cases(values, compare_cases_options, by_thousand, start_date
         return [du.create_text_box('Please select at least one country from the top-left dropdown')]
 
 
-@date_value_callback([Output('compare-vaccinations', 'children')], [Input(country_dropdown_multiple1.id, 'value'),
-                                                                    *DEFAULT_INPUTS[1:-1]])
+@date_value_callback([Output('compare-vaccinations', 'children'),
+                      Output('boosters-given', 'children')], [Input(country_dropdown_multiple1.id, 'value'),
+                                                              *DEFAULT_INPUTS[1:-1]])
 def compare_vaccinations(values, start_date, end_date):
     """
     Compares the vaccination percentage of multiple countries
@@ -335,28 +308,72 @@ def compare_vaccinations(values, start_date, end_date):
     if values:
         data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, values, start_date, end_date,
                                         multi_value=True)
+        data, boosters = get_vaccination_percentage_and_boosters(data)
 
-        pu.convert_date_field_to_week(data, DATE_RECORDED, week_number=False)
-        data = data.group_aggregate([COUNTRY_REGION, WEEK], avg=True)
+        graph_percentage = du.create_plotly_figure(data, 'line', x=date_field, y=PERCENTAGE_VACCINATED,
+                                                   color=COUNTRY_REGION,
+                                                   title=title,
+                                                   labels={
+                                                       date_field: date_title,
+                                                       PERCENTAGE_VACCINATED: 'Percentage Vaccinated'
+                                                   })
 
-        graph = du.create_plotly_figure(data, 'line', x=date_field, y=PERCENTAGE_VACCINATED, color=COUNTRY_REGION,
-                                        title=title,
-                                        labels={
-                                            date_field: date_title,
-                                            PERCENTAGE_VACCINATED: 'Percentage Vaccinated'
-                                        })
+        graph_boosters = du.create_plotly_figure(boosters, 'line', x=date_field, y=TOTAL_BOOSTERS, color=COUNTRY_REGION,
+                                                 title='Total boosters given per hundred by week',
+                                                 labels={
+                                                     date_field: date_title,
+                                                     TOTAL_BOOSTERS: 'Boosters given'
+                                                 })
 
-        return [html.Div(dcc.Graph(id='cases-vaccines-compare', figure=graph))]
+        return [html.Div(dcc.Graph(id='vaccines-compare-percentage', figure=graph_percentage)),
+                html.Div(dcc.Graph(id='vaccines-compare-boosters', figure=graph_boosters))]
     else:
-        return [du.create_text_box('Please select at least one country from the top-left dropdown')]
+        return [du.create_text_box('Please select at least one country from the top-left dropdown'), '']
+
+
+@date_value_callback([Output('country-testing-daily', 'children')], [Input(country_dropdown1.id, 'value'),
+                                                                     *DEFAULT_INPUTS[1:-1]])
+def compare_testing(value, start_date, end_date):
+    """
+    Compares a country's testing efforts
+    :param value: the country value
+    :param start_date: the start date of the time period
+    :param end_date: the end date of the time period
+    :return: the outputs
+    """
+    start_date, end_date = convert_date_range(start_date, end_date)
+
+    if value:
+        data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value, start_date, end_date)
+        data = compute_testing_metrics(data)
+
+        graph = du.create_plotly_figure(data, 'line', x=WEEK, y='Count', color='Type',
+                                        title='Daily tests taken by week',
+                                        labels={
+                                            DATE_RECORDED: 'Day',
+                                            TESTS_PER_THOUSAND: 'Tests Per 1,000',
+                                            POSITIVE_RATE: 'Positive Rate'
+                                        },
+                                        hover_data=[POSITIVE_RATE])
+
+        return [
+            html.Div(
+                dcc.Graph(
+                    id='covid-testing-graph',
+                    figure=graph
+                )
+            )
+        ]
+    else:
+        return [du.create_text_box('Please select a country from the top-left dropdown')]
 
 
 @date_value_callback([Output('compare-variants', 'children'),
-                      Output('variant-proportions', 'children')], [Input(eu_dropdown.id, 'value'),
-                                                                    *DEFAULT_INPUTS[1:-1]])
+                      Output('variant-proportions', 'children')], [Input(variants_dropdown.id, 'value'),
+                                                                   *DEFAULT_INPUTS[1:-1]])
 def compare_variants(value, start_date, end_date):
     """
-    Displays the proportions of variations in the
+    Displays the proportions of variants
     :param value: the value of the country name
     :param start_date: the start date of the data range
     :param end_date: the end date of the data range
@@ -366,8 +383,8 @@ def compare_variants(value, start_date, end_date):
 
     if value:
         data = filter_by_value_and_date(df, COUNTRY_REGION, DATE_RECORDED, value, start_date, end_date)
-        variations_sum_data = get_variations_sums(data.copy())
-        variations_proportions_data = compute_variation_proportions(data.copy())
+        variations_sum_data = get_variants_sums(data.copy())
+        variations_proportions_data = compute_variant_proportions(data.copy())
 
         sum_graph = du.create_plotly_figure(variations_sum_data, 'line', x=DATE_RECORDED, y=NUMBER_DETECTIONS_VARIANT,
                                             color=VARIANT, title='Trend of variant detections over time',
@@ -404,9 +421,10 @@ def compare_variants(value, start_date, end_date):
 
 app.layout = du.get_layout(const.LAYOUT_FILE, {
     'country_dropdown': country_dropdown,
+    'country_dropdown1': country_dropdown1,
     'country_dropdown_multiple': country_dropdown_multiple,
     'country_dropdown_multiple1': country_dropdown_multiple1,
-    'eu_dropdown': eu_dropdown
+    'variants_dropdown': variants_dropdown
 })
 
 

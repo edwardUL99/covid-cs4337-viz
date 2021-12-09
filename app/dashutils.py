@@ -271,7 +271,7 @@ _graph_functions_go = {
 }
 
 
-def _construct_figure(df, figure_func, x, y, graph_object, **kwargs):
+def _construct_figure(df, figure_func, x, y, graph_object, catch_exception=True, **kwargs):
     try:
         if graph_object:
             return figure_func(x=df[x], y=df[y], **kwargs)
@@ -281,8 +281,11 @@ def _construct_figure(df, figure_func, x, y, graph_object, **kwargs):
             else:
                 return figure_func(df, **kwargs)
     except ValueError as e:
-        # sometimes plotly is buggy and throws a random error, so try and construct the graph again
-        return _construct_figure(df, figure_func, x, y, graph_object, **kwargs)
+        if catch_exception:
+            # sometimes plotly is buggy and throws a random error, so try and construct the graph again
+            return _construct_figure(df, figure_func, x, y, graph_object, catch_exception=False, **kwargs)
+        else:
+            raise e
 
 
 def create_plotly_figure(df, figure_type, x, y, title=None, color=None, graph_object=False, **kwargs):
