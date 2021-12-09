@@ -3,7 +3,7 @@ This module contains methods used for transforming dataframes for visualising th
 """
 from data.fields import DATE_RECORDED, COUNTRY_REGION, WEEK, NUMBER_DETECTIONS_VARIANT, VARIANT, \
     PERCENT_VARIANT, VARIANT_FIELDS, NEW_CASES, NEW_DEATHS, INCIDENT_RATE, DEATH_RATE, \
-    DAILY_TESTS, POSITIVE_RATE, TOTAL_BOOSTERS, BOOSTERS_PER_HUNDRED
+    DAILY_TESTS, POSITIVE_RATE, TOTAL_BOOSTERS, BOOSTERS_PER_HUNDRED, PERCENTAGE_VACCINATED
 from data import pandasutils as pu
 
 
@@ -47,16 +47,17 @@ def map_counts_to_categorical(df, selection_base, columns, label_mappings=None, 
     return main_df
 
 
-def convert_daily_to_week(df, date_field=DATE_RECORDED, week_number=False):
+def convert_daily_to_week(df, date_field=DATE_RECORDED, week_number=False, avg=False):
     """
     Convert the daily dated dataframe to a weekly dated frame using the provided date_field.
     :param df: the dataframe to convert
     :param date_field: the field to convert
     :param week_number: True to show week number of the year instead of date
+    :param avg: True to avg, false to not
     :return: the converted dataframe
     """
     return pu.convert_date_field_to_week(df, date_field=date_field, week_number=week_number, inplace=False)\
-        .group_aggregate([COUNTRY_REGION, WEEK])
+        .group_aggregate([COUNTRY_REGION, WEEK], avg=avg)
 
 
 def filter_by_value_and_date(df, value_field, date_field, value, start_date, end_date, multi_value=False):
@@ -116,6 +117,18 @@ def compute_variant_proportions(df):
     df = df.groupby([VARIANT])[NUMBER_DETECTIONS_VARIANT].sum()
     df = df.reset_index()
 
+    df['percent'] = (df[NUMBER_DETECTIONS_VARIANT] / df[NUMBER_DETECTIONS_VARIANT].sum()) * 100
+
+    def proportion_mapper(row):
+        if row['percent'] < 4:
+            return 'Other (proportions < 4%)'
+        else:
+            return row[VARIANT]
+
+    df[VARIANT] = df.apply(proportion_mapper, axis=1)
+    df = df.drop('percent', axis=1)
+
+
     return df
 
 
@@ -174,6 +187,12 @@ def get_vaccination_percentage_and_boosters(df):
 
     vaccination_data = df.copy()
     boosters_data = df.copy()
+
+    vaccination_data['previous_lower'] = vaccination_data[PERCENTAGE_VACCINATED]\
+        .lt(vaccination_data[PERCENTAGE_VACCINATED].shift(1))
+
+    vaccination_data = vaccination_data[~vaccination_data['previous_lower']].copy()
+    vaccination_data.drop('previous_lower', axis=1, inplace=True)
 
     boosters_data[TOTAL_BOOSTERS] = boosters_data[BOOSTERS_PER_HUNDRED]
     boosters_data = boosters_data[boosters_data[TOTAL_BOOSTERS] > 0].copy()

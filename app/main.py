@@ -276,6 +276,9 @@ def compare_country_cases(values, compare_cases_options, by_thousand, start_date
         if by_week:
             data = convert_daily_to_week(data)
 
+        if override_by_week:
+            data[column] = data[column].rolling(window=2).mean()
+
         graph = du.create_plotly_figure(data, 'line', x=date_field, y=column, color=COUNTRY_REGION,
                                         title=title,
                                         labels={
