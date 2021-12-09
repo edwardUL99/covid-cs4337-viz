@@ -10,7 +10,7 @@ html.Div([
                 html.A(
                     dbc.Row(
                         [
-                            dbc.Col(html.Img(src=covid_nav_logo, height='50px')),
+                            dbc.Col(html.Img(src=covid_nav_logo, height='40px')),
                             dbc.Col(dbc.NavbarBrand('COVID-19 Visualisation', className='ms-2')),
                         ],
                         align='center',
@@ -22,6 +22,7 @@ html.Div([
                 create_navigation_item('General', href='#general'),
                 create_navigation_item('Country Comparison', href='#country-comparison'),
                 create_navigation_item('Vaccination Comparison', href='#country-vaccination-comparison'),
+                create_navigation_item('Testing', href='#country-testing'),
                 create_navigation_item('Variants', href='#variants')
             ]
         ),
@@ -78,8 +79,7 @@ html.Div([
                                     html.Div(id='covid-cases-monthly', className='col'),
                                     html.Div(id='covid-deaths-monthly', className='col'),
                                 ]
-                            ),
-                            html.Div(id='vaccination-proportions')
+                            )
                         ])
                     ], className='align-items-center'
                 ),
@@ -144,14 +144,38 @@ html.Div([
                         html.Div(id='compare-vaccinations')
                     ]
                 ),
+                dbc.Row(
+                    [
+                        html.Div(id='boosters-given')
+                    ]
+                )
             ], className='card mt-5 px-2 py-2 shadow', id='country-vaccination-comparison'
         ),
         html.Div(
             [
-                create_header('Visualising COVID-19 Variants within the EU', 'h4'),
+                create_header('Visualising COVID-19 Testing Efforts', 'H4'),
                 dbc.Row(
                     [
-                        eu_dropdown
+                        dbc.Col(
+                            [
+                                country_dropdown1
+                            ]
+                        )
+                    ]
+                ),
+                dbc.Row(
+                    [
+                        html.Div(id='country-testing-daily')
+                    ]
+                )
+            ], className='card mt-5 px-2 py-2 shadow', id='country-testing'
+        ),
+        html.Div(
+            [
+                create_header('Visualising COVID-19 Variants', 'h4'),
+                dbc.Row(
+                    [
+                        variants_dropdown
                     ]
                 ),
                 dbc.Row(html.Div(id='compare-variants')),

@@ -17,7 +17,7 @@ from const import enable_logging, log
 
 import pandasutils as pu
 from fields import *
-from datasets import CustomDataset, get_datasets
+import datasets
 
 
 GITHUB_URL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/' \
@@ -29,9 +29,6 @@ FIELDS_TO_KEEP = CSSE_FIELDS
 
 # Additional preprocessors to add while loading data
 ADDITIONAL_PROCESSORS = []
-
-# additional datasets to merge into the CSSE data
-ADDITIONAL_DATASETS: list[CustomDataset] = []
 
 parser = argparse.ArgumentParser(description='Pulls and cleans CSSE GIS Covid-19 data and vaccination data into a '
                                              'single DataFrame.')
@@ -160,19 +157,6 @@ def _preprocess_whole_df(df: pu.DataFrame):
     return df
 
 
-def _do_merges(df):
-    """
-    Perform the merges on the CSSE data frame
-    :param df: the CSSE data frame
-    :return: the merged data frame
-    """
-    for custom in ADDITIONAL_DATASETS:
-        log(f'Merging dataset from {custom.path_or_url}...')
-        df = custom.merge(df)
-
-    return df
-
-
 def _load_data(output):
     """
     Load the daily data into one dataframe
@@ -186,7 +170,7 @@ def _load_data(output):
     final_df = _preprocess_whole_df(final_df)
 
     log('Merging daily cases data with custom datasets...')
-    merged = _do_merges(final_df)
+    merged = datasets.merge(final_df)
     merged = merged[merged[COUNTRY_REGION].isin(final_df[COUNTRY_REGION])]
 
     final_df = merged
@@ -227,16 +211,6 @@ def add_processing_function(func):
     ADDITIONAL_PROCESSORS.append(func)
 
 
-def add_custom_dataset(custom: CustomDataset):
-    """
-    Adds a custom dataset to merge into the CSSE dataset. Multiple custom datasets are merged as a chain in the order
-    that they are added
-    :param custom: the custom dataset
-    :return: None
-    """
-    ADDITIONAL_DATASETS.append(custom)
-
-
 def calculate_population_metrics(df):
     """
     Calculates per 100000 metrics based off the population field
@@ -261,7 +235,7 @@ def calculate_population_metrics(df):
     for conversion in fields:
         field = conversion['name']
         conversion_field = conversion['conversion_field']
-        df[field] = (df[conversion_field] / df[POPULATION]) * 100000
+        df[field] = (df[conversion_field] / df[POPULATION]) * conversion.get('conversion_factor', 100000)
         df[field] = df[field].round(decimals=2)
 
     df[PERCENTAGE_VACCINATED] = (df[FULLY_VACCINATED] / df[POPULATION]) * 100
@@ -289,9 +263,6 @@ def load(output=const.DATA_FILE):
 
     add_processing_function(drop_rep_ireland)
     add_processing_function(calculate_population_metrics)
-
-    for dataset in get_datasets():
-        add_custom_dataset(dataset)
 
     df = _load_data(output)
     log('Finished')

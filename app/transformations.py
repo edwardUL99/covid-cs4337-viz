@@ -1,8 +1,9 @@
 """
 This module contains methods used for transforming dataframes for visualising them
 """
-from data.fields import DATE_RECORDED, COUNTRY_REGION, WEEK, LINEAGE, NUMBER_DETECTIONS_VARIANT, VARIANT, \
-    PERCENT_VARIANT, VARIANT_FIELDS, NEW_CASES, NEW_DEATHS, CASES_PER_THOUSAND, DEATHS_PER_THOUSAND
+from data.fields import DATE_RECORDED, COUNTRY_REGION, WEEK, NUMBER_DETECTIONS_VARIANT, VARIANT, \
+    PERCENT_VARIANT, VARIANT_FIELDS, NEW_CASES, NEW_DEATHS, CASES_PER_THOUSAND, DEATHS_PER_THOUSAND, \
+    DAILY_TESTS, POSITIVE_RATE, TOTAL_BOOSTERS, BOOSTERS_PER_HUNDRED
 from data import pandasutils as pu
 
 
@@ -28,10 +29,7 @@ def map_counts_to_categorical(df, selection_base, columns, label_mappings=None, 
     if label_mappings is None:
         label_mappings = {}
 
-    dataframes = []
-
-    for column in columns:
-        dataframes.append((df[selection_base + [column]].copy(), column))
+    dataframes = [(df[selection_base + [column]].copy(), column) for column in columns]
 
     for subdf, label in dataframes:
         subdf.rename(columns={label: 'Count'}, inplace=True)
@@ -84,20 +82,20 @@ def filter_by_value_and_date(df, value_field, date_field, value, start_date, end
     return data
 
 
-def get_eu_variations_data(df):
+def get_variants_data(df):
     """
-    Retrieve the variations data for the EU from the loaded dataframe
+    Retrieve the variants data from the loaded dataframe
     :param df: the dataframe to process
-    :return: the processed dataframe having EU data including variations
+    :return: the processed dataframe having variant data
     """
-    df = df.dropna(subset=[LINEAGE, NUMBER_DETECTIONS_VARIANT, VARIANT, PERCENT_VARIANT])
+    df = df.dropna(subset=[NUMBER_DETECTIONS_VARIANT, VARIANT, PERCENT_VARIANT])
 
     return df
 
 
-def get_variations_sums(df):
+def get_variants_sums(df):
     """
-    Get the summation of variations detected grouped by week and variant
+    Get the summation of variants detected grouped by week and variant
     :param df: the dataframe to sum
     :return: the processed dataframe
     """
@@ -108,9 +106,9 @@ def get_variations_sums(df):
     return df
 
 
-def compute_variation_proportions(df):
+def compute_variant_proportions(df):
     """
-    Compute the proportions of the variations
+    Compute the proportions of the variants
     :param df: the dataframe to compute from
     :return: the processed dataframe
     """
@@ -141,3 +139,43 @@ def compute_monthly_cases_deaths(df, by_thousand):
     df = map_counts_to_categorical(df, [COUNTRY_REGION, 'Month'], cases_deaths_fields, keep_max_value=False)
 
     return df, cases_deaths_fields
+
+
+def compute_testing_metrics(df):
+    """
+    Create a dataframe with testing metrics
+    :param df: the dataframe to process
+    :return: the processed dataframe
+    """
+    pu.convert_date_field_to_week(df, DATE_RECORDED, week_number=False)
+    data = df.group_aggregate([COUNTRY_REGION, WEEK], avg=True)
+    data['PositiveTests'] = data[DAILY_TESTS] * data[POSITIVE_RATE]
+    positive_rate = data[POSITIVE_RATE] * 100
+    data = map_counts_to_categorical(data, [COUNTRY_REGION, WEEK], [DAILY_TESTS, 'PositiveTests'],
+                                     keep_max_value=False,
+                                     label_mappings={
+                                         DAILY_TESTS: 'Tests Taken',
+                                         'PositiveTests': 'Positive Tests'
+                                     })
+
+    data[POSITIVE_RATE] = positive_rate
+
+    return data
+
+
+def get_vaccination_percentage_and_boosters(df):
+    """
+    Get the dataframe for vaccination percentages and boosters given
+    :param df: the dataframe to process
+    :return: processed dataframes, 1 for vaccination percentage and another for boosters
+    """
+    pu.convert_date_field_to_week(df, DATE_RECORDED, week_number=False)
+    df = df.group_aggregate([COUNTRY_REGION, WEEK], avg=True)
+
+    vaccination_data = df.copy()
+    boosters_data = df.copy()
+
+    boosters_data[TOTAL_BOOSTERS] = boosters_data[BOOSTERS_PER_HUNDRED]
+    boosters_data = boosters_data[boosters_data[TOTAL_BOOSTERS] > 0].copy()
+
+    return vaccination_data, boosters_data
