@@ -58,6 +58,33 @@ When completed, the processed and cleaned dataset will be output to `data.csv` i
 
 To output to a different file, use the -o flag and the path (including the desired name, e.g. /new/path/to/data.csv)
 
+The dataset has the following columns:
+
+| Column Name | Description |
+| ----------- | ----------- |
+|Country/Region|The name of the country the data has been recorded for|
+|DateRecorded|The date the data has been recorded for|
+|Confirmed|The cumulated total number of cases since the pandemic began|
+|Deaths|The cumulated total number of deaths since the pandemic began|
+|NewCases|The number of new cases on a particular date|
+|NewDeaths|The number of new deaths on a particular date|
+|Doses|The total number of vaccine doses given|
+|people_fully_vaccinated|The number of people fully vaccinated|
+|total_boosters|The total number of boosters given|
+|people_partially_vaccinated|The number of people partially vaccinated (at least 1 dose)|
+|total_boosters_per_hundred|The number of boosters given per hundred people|
+|variant|The name of an identified variant on that date|
+|number_detections_variant|The number of times the variant was detected in sequencing|
+|percent_variant|The percentage of cases sequenced that were in fact the variant|
+|Tests|The total number of COVID-19 tests taken|
+|DailyTests|The daily number of COVID-19 tests|
+|PositiveRate|The number of tests that were positive as a decimal (multiply by 100 to get percentage)|
+|Unvaccinated|The number of people that don’t have any vaccination dose given to them|
+|IncidentRate|The number of cases per 100,000 people|
+|DeathRate|The number of deaths per 100,000 people|
+|PercentageVaccinated|The percentage of population vaccinated|
+
+
 ## Visualisation Dashboard
 The dashboard for visualising the data can be found in the app package. The app has the following command-line arguments:
 ```

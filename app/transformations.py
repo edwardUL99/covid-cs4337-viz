@@ -2,7 +2,7 @@
 This module contains methods used for transforming dataframes for visualising them
 """
 from data.fields import DATE_RECORDED, COUNTRY_REGION, WEEK, NUMBER_DETECTIONS_VARIANT, VARIANT, \
-    PERCENT_VARIANT, VARIANT_FIELDS, NEW_CASES, NEW_DEATHS, CASES_PER_THOUSAND, DEATHS_PER_THOUSAND, \
+    PERCENT_VARIANT, VARIANT_FIELDS, NEW_CASES, NEW_DEATHS, INCIDENT_RATE, DEATH_RATE, \
     DAILY_TESTS, POSITIVE_RATE, TOTAL_BOOSTERS, BOOSTERS_PER_HUNDRED
 from data import pandasutils as pu
 
@@ -128,7 +128,7 @@ def compute_monthly_cases_deaths(df, by_thousand):
     """
     import pandas as pd
 
-    cases_deaths_fields = [CASES_PER_THOUSAND, DEATHS_PER_THOUSAND] if by_thousand else [NEW_CASES, NEW_DEATHS]
+    cases_deaths_fields = [INCIDENT_RATE, DEATH_RATE] if by_thousand else [NEW_CASES, NEW_DEATHS]
 
     df = df[[COUNTRY_REGION, DATE_RECORDED] + cases_deaths_fields].copy()
     df['Month'] = df[DATE_RECORDED].apply(lambda x: f'{x.month}-{x.year}')

@@ -182,8 +182,7 @@ def _get_testing_dataset():
         df = df.rename(columns={'Entity': COUNTRY_REGION, 'Date': DATE_RECORDED,
                                 'Daily change in cumulative total': DAILY_TESTS,
                                 'Cumulative total': TOTAL_TESTS,
-                                'Short-term positive rate': POSITIVE_RATE,
-                                'Daily change in cumulative total per thousand': TESTS_PER_THOUSAND})
+                                'Short-term positive rate': POSITIVE_RATE})
         df[DATE_RECORDED] = pd.to_datetime(df[DATE_RECORDED], format='%Y-%m-%d')
         df[DATE_RECORDED] = df[DATE_RECORDED].dt.floor('d')
 

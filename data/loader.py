@@ -223,11 +223,11 @@ def calculate_population_metrics(df):
 
     fields = [
         {
-            'name': CASES_PER_THOUSAND,
+            'name': INCIDENT_RATE,
             'conversion_field': NEW_CASES
         },
         {
-            'name': DEATHS_PER_THOUSAND,
+            'name': DEATH_RATE,
             'conversion_field': NEW_DEATHS
         }
     ]

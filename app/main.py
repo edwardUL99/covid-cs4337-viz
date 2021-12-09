@@ -227,14 +227,14 @@ def _parse_case_options(date_type, cases_options, by_thousand):
     """
     if cases_options == _CompareCasesOptions.NEW_CASES.value:
         if by_thousand:
-            return f'New Covid-19 Cases By Week per 100,000', 'New Cases', CASES_PER_THOUSAND, True
+            return f'New Covid-19 Cases By Week per 100,000', 'New Cases', INCIDENT_RATE, True
         else:
             return f'New Covid-19 Cases By {date_type}', 'New Cases', NEW_CASES, False
     elif cases_options == _CompareCasesOptions.CONFIRMED_CASES.value:
         return f'Confirmed Covid-19 Cases By {date_type}', 'Confirmed Cases', CONFIRMED, False
     elif cases_options == _CompareCasesOptions.NEW_DEATHS.value:
         if by_thousand:
-            return f'New Covid-19 Deaths By Week per 100,000', 'New Deaths', DEATHS_PER_THOUSAND, True
+            return f'New Covid-19 Deaths By Week per 100,000', 'New Deaths', DEATH_RATE, True
         else:
             return f'New Covid-19 Deaths By {date_type}', 'New Deaths', NEW_DEATHS, False
     elif cases_options == _CompareCasesOptions.DEATHS.value:
@@ -351,7 +351,6 @@ def compare_testing(value, start_date, end_date):
                                         title='Daily tests taken by week',
                                         labels={
                                             DATE_RECORDED: 'Day',
-                                            TESTS_PER_THOUSAND: 'Tests Per 1,000',
                                             POSITIVE_RATE: 'Positive Rate'
                                         },
                                         hover_data=[POSITIVE_RATE])
