@@ -73,8 +73,12 @@ html.Div([
                                     )
                                 )
                             ),
-                            html.Div(id='covid-cases-monthly'),
-                            html.Div(id='covid-deaths-monthly'),
+                            dbc.Row(
+                                [
+                                    html.Div(id='covid-cases-monthly', className='col'),
+                                    html.Div(id='covid-deaths-monthly', className='col'),
+                                ]
+                            ),
                             html.Div(id='vaccination-proportions')
                         ])
                     ], className='align-items-center'

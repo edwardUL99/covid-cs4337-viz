@@ -63,9 +63,9 @@ _dropdown_style = 'w-50'
 
 country_dropdown = du.ColumnDropdown(df, COUNTRY_REGION, value=_default_country, className=_dropdown_style)
 country_dropdown_multiple = du.ColumnDropdown(df, COUNTRY_REGION, id='country_dropdown_multiple', multi=True,
-                                              value=[_default_country], className=_dropdown_style)
+                                              value=[_default_country, 'United Kingdom'], className=_dropdown_style)
 country_dropdown_multiple1 = du.ColumnDropdown(df, COUNTRY_REGION, id='country_dropdown_multiple1',
-                                               multi=True, value=[_default_country], className=_dropdown_style)
+                                               multi=True, value=[_default_country, 'United Kingdom'], className=_dropdown_style)
 eu_dropdown = du.ColumnDropdown(eu_variants_df, COUNTRY_REGION, id='eu_dropdown',
                                 value=_default_country, className=_dropdown_style)
 
